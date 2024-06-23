@@ -4,7 +4,7 @@ from transformers import AutoModel, AutoTokenizer
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from Main import GEA_Emotion_Classifier
+from Model import GEA_Emotion_Classifier
 
 """ Dataset"""
 class GEA_Dataset(Dataset):
