@@ -1,5 +1,6 @@
-import csv
+import csv, os
 import torch
+from datetime import datetime
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -381,7 +382,8 @@ def test(model_path ,config, logger):
     elif config.emotion_or_appraisal == 'both':
             val_data_ = evalute_both(config, model, GEA_data_module, trainer, test_data, is_distributed)
     
-    val_data_.to_csv('new.csv')
+    val_data_.to_csv(os.path.join(config.log_path,
+                                      f'data_out_mode-{config.mode}_type-{config.emotion_or_appraisal}_date-{datetime.now().strftime("%Y_%m_%d__%H_%M_%S")}.csv'))
 
 
 def train(config, logger):
