@@ -1,3 +1,4 @@
-lightning/
+lightning_logs/
+__pycache__/
 myenv/
 # Ignoring logs and env 
