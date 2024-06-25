@@ -1,0 +1,138 @@
+25-Jun-24 13:27:10 - INFO - CONFIG device: cuda
+
+25-Jun-24 13:27:10 - INFO - CONFIG model_name: roberta-base
+
+25-Jun-24 13:27:10 - INFO - CONFIG tokenizer: RobertaTokenizerFast(name_or_path='roberta-base', vocab_size=50265, model_max_length=512, is_fast=True, padding_side='right', truncation_side='right', special_tokens={'bos_token': '<s>', 'eos_token': '</s>', 'unk_token': '<unk>', 'sep_token': '</s>', 'pad_token': '<pad>', 'cls_token': '<s>', 'mask_token': '<mask>'}, clean_up_tokenization_spaces=True),  added_tokens_decoder={
+	0: AddedToken("<s>", rstrip=False, lstrip=False, single_word=False, normalized=True, special=True),
+	1: AddedToken("<pad>", rstrip=False, lstrip=False, single_word=False, normalized=True, special=True),
+	2: AddedToken("</s>", rstrip=False, lstrip=False, single_word=False, normalized=True, special=True),
+	3: AddedToken("<unk>", rstrip=False, lstrip=False, single_word=False, normalized=True, special=True),
+	50264: AddedToken("<mask>", rstrip=False, lstrip=True, single_word=False, normalized=False, special=True),
+}
+
+25-Jun-24 13:27:10 - INFO - CONFIG use_input_embeddings: False
+
+25-Jun-24 13:27:10 - INFO - CONFIG load_from_checkpoint: False
+
+25-Jun-24 13:27:10 - INFO - CONFIG checkpoint_dir: /home1/nekouvag/local_files/lightning_logs/mixExpert2/checkpoints/model-epoch-16-val_loss-15.62.ckpt
+
+25-Jun-24 13:27:10 - INFO - CONFIG inspect_data: False
+
+25-Jun-24 13:27:10 - INFO - CONFIG quick_test: False
+
+25-Jun-24 13:27:10 - INFO - CONFIG mode: test_only
+
+25-Jun-24 13:27:10 - INFO - CONFIG random_state: 42
+
+25-Jun-24 13:27:10 - INFO - CONFIG train_batch_size: 32
+
+25-Jun-24 13:27:10 - INFO - CONFIG val_batch_size: 32
+
+25-Jun-24 13:27:10 - INFO - CONFIG train_val_split: 0.1
+
+25-Jun-24 13:27:10 - INFO - CONFIG hparam_trials: 1
+
+25-Jun-24 13:27:10 - INFO - CONFIG optimizer_lr: [1e-05]
+
+25-Jun-24 13:27:10 - INFO - CONFIG optimizer_batch_size: [32]
+
+25-Jun-24 13:27:10 - INFO - CONFIG max_length: 512
+
+25-Jun-24 13:27:10 - INFO - CONFIG lr: 1e-05
+
+25-Jun-24 13:27:10 - INFO - CONFIG warmup: 0.1
+
+25-Jun-24 13:27:10 - INFO - CONFIG weight_decay: 0.001
+
+25-Jun-24 13:27:10 - INFO - CONFIG epochs: 1
+
+25-Jun-24 13:27:10 - INFO - CONFIG dropout_rate: 0.2
+
+25-Jun-24 13:27:10 - INFO - CONFIG log_path: lightning_logs
+
+25-Jun-24 13:27:10 - INFO - CONFIG train_path: data/enVent_new_Data_train.csv
+
+25-Jun-24 13:27:10 - INFO - CONFIG val_path: data/enVent_new_Data_val.csv
+
+25-Jun-24 13:27:10 - INFO - CONFIG test_path: data/enVent_new_Data_test.csv
+
+25-Jun-24 13:27:10 - INFO - CONFIG data_encoding: ISO-8859-1
+
+25-Jun-24 13:27:10 - INFO - CONFIG gate_mechanism: soft
+
+25-Jun-24 13:27:10 - INFO - CONFIG train_data:      round_number  ...          original_demographics
+0         round-2  ...                       ORIGINAL
+1         round-3  ...                       ORIGINAL
+2         round-3  ...                       ORIGINAL
+3         round-4  ...      COPIED FROM: text id 4116
+4         round-5  ...     COPIED FROM: text id 51157
+...           ...  ...                            ...
+5125      round-6  ...       COPIED FROM: text id 677
+5126      round-5  ...  AVERAGED: text id 5210, 52656
+5127      round-5  ...  AVERAGED: text id 5959, 52707
+5128      round-6  ...      COPIED FROM: text id 6620
+5129      round-6  ...      COPIED FROM: text id 6832
+
+[5130 rows x 61 columns]
+
+25-Jun-24 13:27:10 - INFO - CONFIG val_data:     round_number  ...               original_demographics
+0        round-2  ...           COPIED FROM: text id 2102
+1        round-4  ...  COPIED FROM REJECTED: text id 4192
+2        round-5  ...          COPIED FROM: text id 52349
+3        round-5  ...                            ORIGINAL
+4        round-3  ...                            ORIGINAL
+..           ...  ...                                 ...
+265      round-4  ...          COPIED FROM: text id 41812
+266      round-3  ...            COPIED FROM: text id 371
+267      round-6  ...                            ORIGINAL
+268      round-3  ...                            ORIGINAL
+269      round-5  ...            COPIED FROM: text id 593
+
+[270 rows x 61 columns]
+
+25-Jun-24 13:27:10 - INFO - CONFIG text: hidden_emo_text
+
+25-Jun-24 13:27:10 - INFO - CONFIG peft_config_roberta: LoraConfig(peft_type=<PeftType.LORA: 'LORA'>, auto_mapping=None, base_model_name_or_path=None, revision=None, task_type=None, inference_mode=False, r=4, target_modules=None, lora_alpha=16, lora_dropout=0.1, fan_in_fan_out=False, bias='none', modules_to_save=None, init_lora_weights=True, layers_to_transform=None, layers_pattern=None, rank_pattern={}, alpha_pattern={}, megatron_config=None, megatron_core='megatron.core', loftq_config={})
+
+25-Jun-24 13:27:10 - INFO - CONFIG emotion_or_appraisal: both
+
+25-Jun-24 13:27:10 - INFO - CONFIG emo_dict: {'anger': 0, 'boredom': 1, 'disgust': 2, 'fear': 3, 'guilt': 4, 'joy': 5, 'no-emotion': 6, 'pride': 7, 'relief': 8, 'sadness': 9, 'shame': 10, 'surprise': 11, 'trust': 12}
+
+25-Jun-24 13:27:10 - INFO - CONFIG class_num: 13
+
+25-Jun-24 13:27:10 - INFO - CONFIG emo_attributes: ['emotion']
+
+25-Jun-24 13:27:10 - INFO - CONFIG n_emo_attributes: 1
+
+25-Jun-24 13:27:10 - INFO - CONFIG attributes: ['predict_event', 'pleasantness', 'goal_relevance', 'other_responsblt', 'urgency', 'self_control', 'social_norms']
+
+25-Jun-24 13:27:10 - INFO - CONFIG n_attributes: 7
+
+25-Jun-24 13:27:10 - INFO - CONFIG train_size: 5130
+
+25-Jun-24 13:27:10 - INFO - Current Working Directory:/home1/nekouvag/projects/emo_cog
+25-Jun-24 13:27:10 - INFO - CUDA_VISIBLE_DEVICES: 0
+25-Jun-24 13:27:10 - INFO - Using device: cuda
+25-Jun-24 13:27:10 - INFO - TOKENIZERS_PARALLELISM set to false
+25-Jun-24 13:27:49 - INFO - is_distributed:  False
+25-Jun-24 13:27:49 - INFO - 
+
+Starting prediction model...
+---------------------------------
+25-Jun-24 13:28:17 - INFO - Collected 38 emotion logit batches from predict.
+25-Jun-24 13:28:17 - INFO - Collected 38 appriasal label batches from predict.
+25-Jun-24 13:28:17 - INFO - emotion logit shape torch.Size([32, 13]) 
+25-Jun-24 13:28:17 - INFO - appraisal label shape torch.Size([32, 7]) 
+25-Jun-24 13:28:17 - INFO - R2 Score: 0.0315
+25-Jun-24 13:28:17 - INFO - R2 Score for predict_event: -0.3082
+25-Jun-24 13:28:17 - INFO - R2 Score for pleasantness: 0.5568
+25-Jun-24 13:28:17 - INFO - R2 Score for goal_relevance: 0.0121
+25-Jun-24 13:28:17 - INFO - R2 Score for other_responsblt: 0.2800
+25-Jun-24 13:28:17 - INFO - R2 Score for urgency: -0.3435
+25-Jun-24 13:28:17 - INFO - R2 Score for self_control: -0.0979
+25-Jun-24 13:28:17 - INFO - R2 Score for social_norms: 0.1210
+25-Jun-24 13:28:17 - INFO - Accuracy: 0.4717
+25-Jun-24 13:28:17 - INFO - emo_true_labels_np: (1200,)
+25-Jun-24 13:28:17 - INFO - probs:  (1200, 13)
+25-Jun-24 13:28:17 - INFO - AUC ROC (One-vs-Rest): 0.8818
+25-Jun-24 13:28:17 - INFO - F1 Score: 0.4814
