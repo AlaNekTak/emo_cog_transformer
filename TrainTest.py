@@ -175,7 +175,6 @@ def test(model_path ,config, logger):
 
             return val_data
 
-
     def classify_raw_comments(model, dm, trainer):
         logger.info("\n\nStarting prediction model...\n---------------------------------")
         # Use trainer.predict to get the logits from the model; predict returns an iterable over batches
@@ -272,7 +271,7 @@ def test(model_path ,config, logger):
                 gate_weights.append(batch_result["gate_weights"])
                 
                 if config.expert_mode == 'double':
-                    appraisal_logits.append(batch_result["appraisal_logits"])
+                    appraisal_logits.append(batch_result["appraisal_logits"].view(-1, 1))
                 else: 
                     # Prepare to reshape appraisal logits
                     batch_appraisal_logits = [batch_result["appraisal_logits"][i] for i in range(len(batch_result["appraisal_logits"]))]

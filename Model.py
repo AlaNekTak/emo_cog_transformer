@@ -317,7 +317,7 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
             emotion_labels = emotion_labels.view(-1)
             assert emotion_logits.shape == (emotion_labels.shape[0],self.config.class_num), "Mismatch in batch size between logits and labels"
             emotion_loss = self.emotion_loss_func(emotion_logits, emotion_labels)  # Assuming emotion labels are the last
-            appraisal_loss = self.appraisal_loss_func(appraisal_logits.view(-1), appraisal_labels)
+            appraisal_loss = self.appraisal_loss_func(appraisal_logits.view(-1, 1), appraisal_labels)
             total_loss += emotion_loss + appraisal_loss
             loss_dict['emotion'] = emotion_loss.item()
             loss_dict['appraisals'] = appraisal_loss.item()
