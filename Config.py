@@ -20,7 +20,7 @@ class Config:
         self.inspect_data = False
         self.quick_test = False
         self.mode = args.mode
-        self.expert_mode = 'double'
+        self.expert_mode = args.expert_mode
         self.random_state = args.random_state
         self.train_batch_size = args.train_batch_size
         self.val_batch_size = args.val_batch_size
@@ -60,7 +60,7 @@ class Config:
             self.n_emo_attributes = len(self.emo_attributes) # if multi-label
 
         if self.emotion_or_appraisal == 'appraisal' or self.emotion_or_appraisal == 'both':
-            self.attributes = ['predict_event']
+            self.attributes = ['pleasantness']
             # self.attributes = ['predict_event', 'pleasantness', 'goal_relevance',
             # 'other_responsblt', 'urgency', 'self_control', 'social_norms']
             self.n_attributes = len(self.attributes) # if multi-label
