@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 import optuna
 from Config import  NoOpCallback
 from Data import GEA_Data_Module, GEA_Dataset
-from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier
+from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier
 from ModelOptimizer import ModelOptimizer
 
 
@@ -271,10 +271,13 @@ def test(model_path ,config, logger):
                 appraisal_labels.append(batch_result["appraisal_labels"])
                 gate_weights.append(batch_result["gate_weights"])
                 
-                # Prepare to reshape appraisal logits
-                batch_appraisal_logits = [batch_result["appraisal_logits"][i] for i in range(len(batch_result["appraisal_logits"]))]
-                batch_appraisal_logits = torch.cat(batch_appraisal_logits, dim=1)  # Should reshape each batch's logits to [32, 7]
-                appraisal_logits.append(batch_appraisal_logits)
+                if config.expert_mode == 'double':
+                    appraisal_logits.append(batch_result["appraisal_logits"])
+                else: 
+                    # Prepare to reshape appraisal logits
+                    batch_appraisal_logits = [batch_result["appraisal_logits"][i] for i in range(len(batch_result["appraisal_logits"]))]
+                    batch_appraisal_logits = torch.cat(batch_appraisal_logits, dim=1)  # Should reshape each batch's logits to [32, 7]
+                    appraisal_logits.append(batch_appraisal_logits)
                     
             logger.info(f"Collected {len(emotion_logits)} emotion logit batches from predict.")
             logger.info(f"Collected {len(appraisal_logits)} appriasal label batches from predict.")
@@ -351,7 +354,10 @@ def test(model_path ,config, logger):
         return val_data
 
     if config.emotion_or_appraisal == 'both':
-        model = MixExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
+        if config.expert_mode == 'double':
+            model = DoubleExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
+        else:
+            model = MixExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
     else:
         model = GEA_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
     # checkpoint = torch.load(model_path) # map_location=torch.device(device)

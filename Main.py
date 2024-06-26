@@ -46,7 +46,7 @@ from TrainTest import test, train, split_train_val_test, quick_test, inspect_dat
 def parse_args(): 
     parser = argparse.ArgumentParser(description="Emotion and Appraisal Prediction Model Training")
     # Adding arguments
-    parser.add_argument("--max_length", type=int, default=512, help="Maximum sequence length - 512")
+    parser.add_argument("--max_length", type=int, default=124, help="Maximum sequence length - 512")
     parser.add_argument("--hparam_trials", type=int, default=1, help="Number of hyperparameter trials")
     parser.add_argument("--optimizer_lr", type=float, default=[1e-5], help="Learning rates given to optimizer")
     parser.add_argument("--optimizer_batch_size", type=int, default=[32], help="Training batch sizes given to the optimizer")
@@ -62,7 +62,7 @@ def parse_args():
     parser.add_argument("--model_arch", type=str, default='Hierarchical_Emotion_Emotion', choices=['Emotion_Only', 'Pretrained_Appraisal_post_Emotion', 'Hierarchical_Appraisal_Emotion', 'Text_And_Appraisal_Input', 'Hierarchical_Emotion_Emotion'], help="Type of training to perform")
     parser.add_argument("--forced_appraisal_training", type=str, default='False', choices=['True', 'False'], help="Forced appraisal training mode")
     parser.add_argument("--embedding_usage_mode", type=str, default="last", choices=["average", "last", "first"], help="Embedding usage mode")
-    parser.add_argument("--model_name", type=str, default='roberta-base', choices=['distilroberta-base','roberta-base', 'roberta-large', 'mistralai/Mistral-7B-v0.1', 'meta-llama/Llama-2-7b-hf'], help="Model name")
+    parser.add_argument("--model_name", type=str, default='distilroberta-base', choices=['distilroberta-base','roberta-base', 'roberta-large', 'mistralai/Mistral-7B-v0.1', 'meta-llama/Llama-2-7b-hf'], help="Model name")
     parser.add_argument("--emotion_or_appraisal", type=str, default='both',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
     parser.add_argument("--train_val_split", type=float, default=0.1, help="val/train split ratio")
     parser.add_argument("--mode", type=str, default='both',choices=['both', 'train_only', 'test_only'], help='Are you training, testing, or both?')

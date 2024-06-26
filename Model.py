@@ -328,14 +328,11 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
         total_loss, emotion_logits, appraisal_logits,gate_weights, loss_dict = self(**batch)
         self.log("train_loss", total_loss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
         self.log("emotion_loss", loss_dict['emotion'], prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
-        
-        for idx, loss in enumerate(loss_dict['appraisals']):
-                self.log(f'appraisal_{idx}_loss', loss, on_step=False, on_epoch=True)
+        self.log(f'appraisal_loss', loss_dict['appraisals'], on_step=False, on_epoch=True)
 
-        if self.config.gate_mechanism == 'soft':
-            mean_gate_weights = gate_weights.mean(dim=0)
-            for idx, weight in enumerate(mean_gate_weights):
-                self.log(f'gate_weight_{idx}', weight, on_step=False, on_epoch=True)
+        mean_gate_weights = gate_weights.mean(dim=0)
+        self.log(f'gate_weight_appraisal', mean_gate_weights[0], on_step=False, on_epoch=True)
+        self.log(f'gate_weight_emotion', mean_gate_weights[1], on_step=False, on_epoch=True)
 
         return {"loss": total_loss, 
                 "emotion_logits":emotion_logits,
@@ -374,26 +371,11 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
         nn.init.xavier_uniform_(self.emotion_hidden.weight)
         nn.init.xavier_uniform_(self.emotion_classifier.weight)
 
-    def on_train_epoch_end_static(self):
-        # Log the gate weights at the end of each epoch
-        if self.config.gate_mechanism == 'hard':
-            weights = F.softmax(self.selection_weights, dim=0).data
-        elif self.config.gate_mechanism == 'soft':
-            # weights = torch.sigmoid(self.gate_weights).data
-            weights = F.softmax(self.gate_weights.squeeze(), dim=0)
-
-        # Use PyTorch Lightning's logger or any other logging mechanism
-        for idx, weight in enumerate(weights.squeeze()):
-            print(f'gate_weight{idx}-{self.config.attributes[idx]}', weight.item())
-            self.log(f'gate_weight_{idx}-{self.config.attributes[idx]}', weight.mean().item(), on_step=False, on_epoch=True)
-    
     def on_train_epoch_end(self):
-        if self.config.gate_mechanism == 'soft':
-            for idx in range(self.config.n_attributes):
-                # Retrieve each gate weight average logged during the epoch
-                print(f'{self.config.attributes[idx]} weight: ',self.trainer.callback_metrics.get(f'gate_weight_{idx}').cpu().numpy())
-                print(f'{self.config.attributes[idx]} loss: ',self.trainer.callback_metrics.get(f'appraisal_{idx}_loss').cpu().numpy())
-            print('emotion loss: ',self.trainer.callback_metrics.get(f'emotion_loss').cpu().numpy())
+        print(f'{self.config.attributes[0]} weight: ',self.trainer.callback_metrics.get('gate_weight_appraisal').cpu().numpy())
+        print(f'emotion weight: ',self.trainer.callback_metrics.get(f'gate_weight_emotion').cpu().numpy())
+        print(f'{self.config.attributes[0]} loss: ',self.trainer.callback_metrics.get(f'appraisal_loss').cpu().numpy())
+        print('emotion loss: ',self.trainer.callback_metrics.get(f'emotion_loss').cpu().numpy())
 
     # def on_validation_epoch_end(self):
     #     if self.config.gate_mechanism == 'soft':

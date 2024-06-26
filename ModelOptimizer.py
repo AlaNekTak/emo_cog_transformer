@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from Config import Config, NoOpCallback, CustomCallback, Log
 from Data import GEA_Data_Module, GEA_Dataset
-from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier
+from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier
 
 
 """ ModelOptimizer """
@@ -41,7 +41,10 @@ class ModelOptimizer:
         if not self.config.emotion_or_appraisal == 'both':
             model = GEA_Emotion_Classifier(self.config).to(self.config.device)
         else: 
-            model = MixExp_Emotion_Classifier(self.config).to(self.config.device)
+            if self.config.expert_mode == 'double':
+                model = DoubleExp_Emotion_Classifier(self.config).to(self.config.device)
+            else:
+                model = MixExp_Emotion_Classifier(self.config).to(self.config.device)
 
         # if self.config.load_from_checkpoint:
         #     checkpoint = torch.load(self.config.checkpoint_dir, map_location=self.config.device)
