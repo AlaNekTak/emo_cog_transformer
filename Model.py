@@ -283,7 +283,10 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
         self.appraisal_loss_func = nn.MSELoss()
         self.emotion_loss_func = nn.CrossEntropyLoss()
         self.dropout = nn.Dropout(self.config.dropout_rate)
-        
+
+        self.appraisal_loss_scaler = RunningMaxLossScaler()
+        self.emotion_loss_scaler = RunningMaxLossScaler()
+
         ## Weight initialization
         self.save_hyperparameters()
         self.initialize_weights()
@@ -321,6 +324,13 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
             total_loss += emotion_loss + appraisal_loss
             loss_dict['emotion'] = emotion_loss.item()
             loss_dict['appraisals'] = appraisal_loss.item()
+
+            # Apply dynamic scaling
+            scaled_emotion_loss = self.emotion_loss_scaler.update_and_scale_loss(emotion_loss)
+            scaled_appraisal_loss = self.appraisal_loss_scaler.update_and_scale_loss(appraisal_loss)
+            total_loss = scaled_emotion_loss + scaled_appraisal_loss
+            loss_dict['emotion'] = scaled_emotion_loss.item()
+            loss_dict['appraisals'] = scaled_appraisal_loss.item()
 
         return total_loss, emotion_logits, appraisal_logits, gate_weights, loss_dict
 
@@ -384,3 +394,17 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
     #             print(f'{self.config.attributes[idx]} weight: ',self.trainer.callback_metrics.get(f'gate_weight_{idx}').cpu().numpy())
     #             print(f'{self.config.attributes[idx]} loss: ',self.trainer.callback_metrics.get(f'appraisal_{idx}_loss').cpu().numpy())
     #         print('emotion loss: ',self.trainer.callback_metrics.get(f'emotion_loss').cpu().numpy())
+        
+
+class RunningMaxLossScaler:
+    def __init__(self):
+        self.max_val = 0.01  # Start with a small value to avoid division by zero
+
+    def update_and_scale_loss(self, current_loss):
+        # Update the running maximum if the current loss exceeds it
+        current_loss_value = current_loss.detach().item()  # Detach and get the scalar value
+        if current_loss_value > self.max_val:
+            self.max_val = current_loss_value
+
+        # Normalize the current loss by the updated maximum value
+        return current_loss / self.max_val

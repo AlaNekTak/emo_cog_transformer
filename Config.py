@@ -60,7 +60,7 @@ class Config:
             self.n_emo_attributes = len(self.emo_attributes) # if multi-label
 
         if self.emotion_or_appraisal == 'appraisal' or self.emotion_or_appraisal == 'both':
-            self.attributes = ['other_responsblt']
+            self.attributes = ['chance_control']
             # self.attributes = ['predict_event', 'pleasantness', 'attention',
             # 'other_responsblt', 'chance_control', 'social_norms']
             self.n_attributes = len(self.attributes) # if multi-label
