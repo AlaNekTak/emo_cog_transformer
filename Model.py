@@ -261,7 +261,6 @@ class DynamicSoftGate(nn.Module):
         return gate_weights
 
 
-
 class DoubleExp_Emotion_Classifier(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
