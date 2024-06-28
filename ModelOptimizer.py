@@ -43,8 +43,10 @@ class ModelOptimizer:
         else: 
             if self.config.expert_mode == 'double':
                 model = DoubleExp_Emotion_Classifier(self.config).to(self.config.device)
-            else:
+            elif self.config.expert_mode == 'mixed':
                 model = MixExp_Emotion_Classifier(self.config).to(self.config.device)
+            elif self.config.expert_mode == 'probe':
+                model = ProbeEmotionClassifier(self.config).to(self.config.device)
 
         # if self.config.load_from_checkpoint:
         #     checkpoint = torch.load(self.config.checkpoint_dir, map_location=self.config.device)
