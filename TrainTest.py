@@ -268,13 +268,12 @@ def test(model_path ,config, logger):
                 emotion_logits.append(batch_result["emotion_logits"])
                 emotion_labels.append(batch_result["emotion_labels"])
                 appraisal_labels.append(batch_result["appraisal_labels"])
+                gate_weights.append(batch_result["gate_weights"])
                 
                 if config.expert_mode == 'double':
-                    gate_weights.append(batch_result["gate_weights"])
                     appraisal_logits.append(batch_result["appraisal_logits"].view(-1, 1))
 
                 elif config.expert_mod == 'mixed':
-                    gate_weights.append(batch_result["gate_weights"])
                     # Prepare to reshape appraisal logits
                     batch_appraisal_logits = [batch_result["appraisal_logits"][i] for i in range(len(batch_result["appraisal_logits"]))]
                     batch_appraisal_logits = torch.cat(batch_appraisal_logits, dim=1)  # Should reshape each batch's logits to [32, 7]
@@ -290,15 +289,14 @@ def test(model_path ,config, logger):
             emotion_labels = torch.cat(emotion_labels, dim=0).to(config.device)
             appraisal_labels = torch.cat(appraisal_labels, dim=0).to(config.device)
 
-            if gate_weights and appraisal_logits:
-                gate_weights = torch.cat(gate_weights, dim=0).to(config.device)       
-                appraisal_logits = torch.cat(appraisal_logits, dim=0).to(config.device)
+            gate_weights = torch.cat(gate_weights, dim=0).to(config.device)       
+            appraisal_logits = torch.cat(appraisal_logits, dim=0).to(config.device)
 
         except RuntimeError as e:
             logger.error("Error during tensor concatenation: " + str(e))
             raise
 
-        if not is_distributed and config.expert_mod != 'probe': #torch.distributed.get_rank() == 0 or 
+        if not is_distributed: #torch.distributed.get_rank() == 0 or 
             predictions_np = appraisal_logits.cpu().numpy()
             true_labels_np = appraisal_labels.cpu().numpy()   
             gate_weights_np = gate_weights.cpu().numpy()
@@ -354,12 +352,9 @@ def test(model_path ,config, logger):
             # Append predictions to the original validation DataFrame
             val_data['emo_predictions'] = emo_labels_np
 
-            return val_data
+        return val_data
         
-        if config.expert_mod == 'probe':
-            do_probe()
-
-
+        
     if config.emotion_or_appraisal == 'both':
         if config.expert_mode == 'double':
             model = DoubleExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
@@ -396,8 +391,13 @@ def test(model_path ,config, logger):
             val_data_ = evaluate_regression_model(config, model, GEA_data_module, trainer, test_data, is_distributed)
 
     elif config.emotion_or_appraisal == 'both':
-            val_data_ = evalute_both(config, model, GEA_data_module, trainer, test_data, is_distributed)
-    
+            if config.expert_mode == 'probe':
+                do_probe(config,logger, model, GEA_data_module, trainer, test_data, is_distributed)
+            else:
+                val_data_ = evalute_both(config, model, GEA_data_module, trainer, test_data, is_distributed)
+            
+
+
     val_data_.to_csv(os.path.join(config.log_path,
                                       f'data_out_mode-{config.mode}_type-{config.emotion_or_appraisal}_date-{datetime.now().strftime("%Y_%m_%d__%H_%M_%S")}.csv'))
 
@@ -419,5 +419,41 @@ def train(config, logger):
     return best_model_path
 
 
-def do_probe():
-    return None
+def do_probe(config, logger, model, dm, trainer, test_data, is_distributed=False):
+        logger.info("\n\nStarting probe model...\n---------------------------------")
+        predict_results = trainer.predict(model, datamodule=dm)
+        emotion_logits, emotion_labels, appraisal_labels, mean_last_hidden = [], [], [], []
+
+        try:
+            # Extract logits and labels from the results
+            for idx, batch_result in enumerate(predict_results):
+                emotion_logits.append(batch_result["emotion_logits"])
+                emotion_labels.append(batch_result["emotion_labels"])
+                appraisal_labels.append(batch_result["appraisal_labels"])
+                mean_last_hidden.append(batch_result["mean_last_hidden"])
+        
+                    
+            logger.info(f"Collected {len(emotion_logits)} emotion logit batches from predict.")
+            logger.info(f"emotion logit shape {emotion_logits[0].shape} ")
+            logger.info(f"hidden state shape {mean_last_hidden[0].shape} ")
+
+            # Concatenate all batches into a single tensor along the batch dimension
+            emotion_logits = torch.cat(emotion_logits, dim=0).to(config.device)
+            emotion_labels = torch.cat(emotion_labels, dim=0).to(config.device)
+            appraisal_labels = torch.cat(appraisal_labels, dim=0).to(config.device)
+
+        except RuntimeError as e:
+            logger.error("Error during tensor concatenation: " + str(e))
+            raise
+
+        if not is_distributed: #torch.distributed.get_rank() == 0 or 
+            true_labels_np = appraisal_labels.cpu().numpy()   
+
+            # Report R2 score for each attribute
+            for idx, col in enumerate(config.attributes):
+                attribute_labels = true_labels_np[:, idx]
+                logger.info(f"")
+
+            emo_true_labels_np = emotion_labels.cpu().numpy()   
+            logger.info(f'emo_true_labels_np: {emo_true_labels_np.shape}')
+
