@@ -423,8 +423,6 @@ class ProbeEmotionClassifier(pl.LightningModule):
         self.emotion_classifier = nn.Linear(self.pretrained_model.config.hidden_size, self.config.class_num)
         self.emotion_loss_func = nn.CrossEntropyLoss()
         self.dropout = nn.Dropout(self.config.dropout_rate)
-
-        ## Weight initialization
         self.save_hyperparameters()
         self.initialize_weights()
 
@@ -435,7 +433,6 @@ class ProbeEmotionClassifier(pl.LightningModule):
             outputs = self.pretrained_model(input_ids=input_ids, attention_mask=attention_mask)
 
         mean_last_hidden = torch.mean(outputs.last_hidden_state, 1)
-
         emotion_pooled = self.dropout(F.relu(self.emotion_hidden(mean_last_hidden)))
         emotion_logits = self.emotion_classifier(emotion_pooled)
 
@@ -492,8 +489,6 @@ class ProbeEmotionClassifier(pl.LightningModule):
         return [optimizer],[scheduler]
 
     def initialize_weights(self):
-        nn.init.xavier_uniform_(self.appraisal_hidden.weight)
-        nn.init.xavier_uniform_(self.appraisal_classifier.weight)
         nn.init.xavier_uniform_(self.emotion_hidden.weight)
         nn.init.xavier_uniform_(self.emotion_classifier.weight)
 

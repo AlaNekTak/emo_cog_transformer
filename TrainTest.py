@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 import optuna
 from Config import  NoOpCallback
 from Data import GEA_Data_Module, GEA_Dataset
-from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier
+from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier, ProbeEmotionClassifier
 from ModelOptimizer import ModelOptimizer
 
 
@@ -268,11 +268,13 @@ def test(model_path ,config, logger):
                 emotion_logits.append(batch_result["emotion_logits"])
                 emotion_labels.append(batch_result["emotion_labels"])
                 appraisal_labels.append(batch_result["appraisal_labels"])
-                gate_weights.append(batch_result["gate_weights"])
                 
                 if config.expert_mode == 'double':
+                    gate_weights.append(batch_result["gate_weights"])
                     appraisal_logits.append(batch_result["appraisal_logits"].view(-1, 1))
-                else: 
+
+                elif config.expert_mod == 'mixed':
+                    gate_weights.append(batch_result["gate_weights"])
                     # Prepare to reshape appraisal logits
                     batch_appraisal_logits = [batch_result["appraisal_logits"][i] for i in range(len(batch_result["appraisal_logits"]))]
                     batch_appraisal_logits = torch.cat(batch_appraisal_logits, dim=1)  # Should reshape each batch's logits to [32, 7]
@@ -287,14 +289,16 @@ def test(model_path ,config, logger):
             emotion_logits = torch.cat(emotion_logits, dim=0).to(config.device)
             emotion_labels = torch.cat(emotion_labels, dim=0).to(config.device)
             appraisal_labels = torch.cat(appraisal_labels, dim=0).to(config.device)
-            gate_weights = torch.cat(gate_weights, dim=0).to(config.device)       
-            appraisal_logits = torch.cat(appraisal_logits, dim=0).to(config.device)
+
+            if gate_weights and appraisal_logits:
+                gate_weights = torch.cat(gate_weights, dim=0).to(config.device)       
+                appraisal_logits = torch.cat(appraisal_logits, dim=0).to(config.device)
 
         except RuntimeError as e:
             logger.error("Error during tensor concatenation: " + str(e))
             raise
 
-        if not is_distributed: #torch.distributed.get_rank() == 0 or 
+        if not is_distributed and config.expert_mod != 'probe': #torch.distributed.get_rank() == 0 or 
             predictions_np = appraisal_logits.cpu().numpy()
             true_labels_np = appraisal_labels.cpu().numpy()   
             gate_weights_np = gate_weights.cpu().numpy()
@@ -350,7 +354,11 @@ def test(model_path ,config, logger):
             # Append predictions to the original validation DataFrame
             val_data['emo_predictions'] = emo_labels_np
 
-        return val_data
+            return val_data
+        
+        if config.expert_mod == 'probe':
+            do_probe()
+
 
     if config.emotion_or_appraisal == 'both':
         if config.expert_mode == 'double':
@@ -406,3 +414,7 @@ def train(config, logger):
     best_model_path = optimizer.checkpoint_callback.best_model_path
     logger.info(f"Best model saved at: {best_model_path}")
     return best_model_path
+
+
+def do_probe():
+    return None

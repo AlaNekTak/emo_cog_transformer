@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument("--emotion_or_appraisal", type=str, default='both',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
     parser.add_argument("--train_val_split", type=float, default=0.1, help="val/train split ratio")
     parser.add_argument("--mode", type=str, default='both',choices=['both', 'train_only', 'test_only'], help='Are you training, testing, or both?')
-    parser.add_argument("--expert_mode", type=str, default='double',choices=['double', 'mixed', 'probe'], help='what model arch are you using?')
+    parser.add_argument("--expert_mode", type=str, default='probe',choices=['double', 'mixed', 'probe'], help='what model arch are you using?')
     # Paths
     parser.add_argument("--train_data_path", type=str, default='data/enVent_new_Data_train.csv', help="Path to the training data")
     parser.add_argument("--val_data_path", type=str, default='data/enVent_new_Data_val.csv', help="Path to the test data")

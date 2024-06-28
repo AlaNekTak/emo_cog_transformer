@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from Config import Config, NoOpCallback, CustomCallback, Log
 from Data import GEA_Data_Module, GEA_Dataset
-from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier
+from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier, ProbeEmotionClassifier
 
 
 """ ModelOptimizer """
