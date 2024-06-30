@@ -419,7 +419,7 @@ class ProbeEmotionClassifier(pl.LightningModule):
         self.config = config
         self.use_input_embeddings = self.config.use_input_embeddings
         self.pretrained_model = AutoModel.from_pretrained(self.config.model_name, return_dict=True)
-        self.emotion_hidden = nn.Linear(2 * self.pretrained_model.config.hidden_size, self.pretrained_model.config.hidden_size) # Emotion classification components
+        self.emotion_hidden = nn.Linear(self.pretrained_model.config.hidden_size, self.pretrained_model.config.hidden_size) # Emotion classification components
         self.emotion_classifier = nn.Linear(self.pretrained_model.config.hidden_size, self.config.class_num)
         self.emotion_loss_func = nn.CrossEntropyLoss()
         self.dropout = nn.Dropout(self.config.dropout_rate)

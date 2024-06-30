@@ -46,7 +46,7 @@ from TrainTest import test, train, split_train_val_test, quick_test, inspect_dat
 def parse_args(): 
     parser = argparse.ArgumentParser(description="Emotion and Appraisal Prediction Model Training")
     # Adding arguments
-    parser.add_argument("--max_length", type=int, default=512, help="Maximum sequence length - 512")
+    parser.add_argument("--max_length", type=int, default=124, help="Maximum sequence length - 512")
     parser.add_argument("--hparam_trials", type=int, default=1, help="Number of hyperparameter trials")
     parser.add_argument("--optimizer_lr", type=float, default=[1e-5], help="Learning rates given to optimizer")
     parser.add_argument("--optimizer_batch_size", type=int, default=[32], help="Training batch sizes given to the optimizer")
@@ -56,7 +56,7 @@ def parse_args():
     parser.add_argument("--dropout_rate", type=float, default=0.2, help="Dropout rate")
     parser.add_argument("--warmup", type=float, default=0.1, help="Warmup")
     parser.add_argument("--weight_decay", type=float, default=0.001, help="weight decay")
-    parser.add_argument("--epochs", type=int, default=12, help="Number of epochs for training")
+    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs for training")
     parser.add_argument("--data_encoding", type=str, default='ISO-8859-1', help="Data encoding type")
     parser.add_argument("--random_state", type=int, default=42, help="Random seed for train-val division")
     parser.add_argument("--model_arch", type=str, default='Hierarchical_Emotion_Emotion', choices=['Emotion_Only', 'Pretrained_Appraisal_post_Emotion', 'Hierarchical_Appraisal_Emotion', 'Text_And_Appraisal_Input', 'Hierarchical_Emotion_Emotion'], help="Type of training to perform")
@@ -65,7 +65,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, default='roberta-base', choices=['distilroberta-base','roberta-base', 'roberta-large', 'mistralai/Mistral-7B-v0.1', 'meta-llama/Llama-2-7b-hf'], help="Model name")
     parser.add_argument("--emotion_or_appraisal", type=str, default='both',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
     parser.add_argument("--train_val_split", type=float, default=0.1, help="val/train split ratio")
-    parser.add_argument("--mode", type=str, default='both',choices=['both', 'train_only', 'test_only'], help='Are you training, testing, or both?')
+    parser.add_argument("--mode", type=str, default='test_only',choices=['both', 'train_only', 'test_only'], help='Are you training, testing, or both?')
     parser.add_argument("--expert_mode", type=str, default='probe',choices=['double', 'mixed', 'probe'], help='what model arch are you using?')
     # Paths
     parser.add_argument("--train_data_path", type=str, default='data/enVent_new_Data_train.csv', help="Path to the training data")
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     if config.quick_test:
         quick_test(config, logger)
 
-    # split_train_val_test(config, 'data/enVent_gen_Data.csv', 'data/enVent_val_Data.csv')
+    split_train_val_test(config, 'data/enVent_gen_Data.csv', 'data/enVent_val_Data.csv')
     
     if config.mode == 'train_only':
         best_model_path = train(config, logger)

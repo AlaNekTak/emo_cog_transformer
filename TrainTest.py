@@ -420,40 +420,45 @@ def train(config, logger):
 
 
 def do_probe(config, logger, model, dm, trainer, test_data, is_distributed=False):
-        logger.info("\n\nStarting probe model...\n---------------------------------")
-        predict_results = trainer.predict(model, datamodule=dm)
-        emotion_logits, emotion_labels, appraisal_labels, mean_last_hidden = [], [], [], []
+    logger.info("\n\nStarting probe model...\n---------------------------------")
+    predict_results = trainer.predict(model, datamodule=dm)
+    emotion_logits, emotion_labels, appraisal_labels, mean_last_hidden = [], [], [], []
 
-        try:
-            # Extract logits and labels from the results
-            for idx, batch_result in enumerate(predict_results):
-                emotion_logits.append(batch_result["emotion_logits"])
-                emotion_labels.append(batch_result["emotion_labels"])
-                appraisal_labels.append(batch_result["appraisal_labels"])
-                mean_last_hidden.append(batch_result["mean_last_hidden"])
+    try:
+        for idx, batch_result in enumerate(predict_results):
+            emotion_logits.append(batch_result["emotion_logits"])
+            emotion_labels.append(batch_result["emotion_labels"])
+            appraisal_labels.append(batch_result["appraisal_labels"])
+            mean_last_hidden.append(batch_result["mean_last_hidden"])
         
-                    
-            logger.info(f"Collected {len(emotion_logits)} emotion logit batches from predict.")
-            logger.info(f"emotion logit shape {emotion_logits[0].shape} ")
-            logger.info(f"hidden state shape {mean_last_hidden[0].shape} ")
+        logger.info(f"Collected {len(emotion_logits)} batches of emotion logits.")
+        emotion_logits = torch.cat(emotion_logits, dim=0).to(config.device)
+        emotion_labels = torch.cat(emotion_labels, dim=0).to(config.device)
+        appraisal_labels = torch.cat(appraisal_labels, dim=0).to(config.device)
+        mean_last_hidden = torch.cat(mean_last_hidden, dim=0).to(config.device)
 
-            # Concatenate all batches into a single tensor along the batch dimension
-            emotion_logits = torch.cat(emotion_logits, dim=0).to(config.device)
-            emotion_labels = torch.cat(emotion_labels, dim=0).to(config.device)
-            appraisal_labels = torch.cat(appraisal_labels, dim=0).to(config.device)
+    except RuntimeError as e:
+        logger.error("Error during tensor concatenation: " + str(e))
+        raise
 
-        except RuntimeError as e:
-            logger.error("Error during tensor concatenation: " + str(e))
-            raise
+    if not is_distributed:
+        # Save the hidden states and labels for later use
+        output_dir = config.output_dir if hasattr(config, 'output_dir') else './output'
+        os.makedirs(output_dir, exist_ok=True)
+        
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        hidden_file_path = os.path.join(output_dir, f'hidden_states_{timestamp}.pt')
+        labels_file_path = os.path.join(output_dir, f'appraisal_labels_{timestamp}.pt')
 
-        if not is_distributed: #torch.distributed.get_rank() == 0 or 
-            true_labels_np = appraisal_labels.cpu().numpy()   
+        torch.save(mean_last_hidden, hidden_file_path)
+        torch.save(appraisal_labels, labels_file_path)
 
-            # Report R2 score for each attribute
-            for idx, col in enumerate(config.attributes):
-                attribute_labels = true_labels_np[:, idx]
-                logger.info(f"")
+        logger.info(f"Saved hidden states to {hidden_file_path}")
+        logger.info(f"Saved appraisal labels to {labels_file_path}")
 
-            emo_true_labels_np = emotion_labels.cpu().numpy()   
-            logger.info(f'emo_true_labels_np: {emo_true_labels_np.shape}')
+        # Optionally save emotion logits and labels if needed
+        # torch.save(emotion_logits, os.path.join(output_dir, f'emotion_logits_{timestamp}.pt'))
+        # torch.save(emotion_labels, os.path.join(output_dir, f'emotion_labels_{timestamp}.pt'))
+
+    logger.info(f"Probing complete. Data saved for further analysis.")
 
