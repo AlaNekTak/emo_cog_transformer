@@ -472,7 +472,7 @@ class ProbeEmotionClassifier(pl.LightningModule):
                 }
 
     def predict_step(self, batch, batch_index):
-        _, emotion_logits, _, _, mean_last_hidden = self(**batch)
+        _, emotion_logits, _, mean_last_hidden = self(**batch)
         return {
                 "emotion_logits":emotion_logits,
                 "emotion_labels": batch["emotion_labels"], 
