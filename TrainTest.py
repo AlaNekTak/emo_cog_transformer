@@ -397,8 +397,8 @@ def test(model_path ,config, logger):
                 val_data_ = evalute_both(config, model, GEA_data_module, trainer, test_data, is_distributed)
             
 
-
-    val_data_.to_csv(os.path.join(config.log_path,
+    if config.expert_mode != 'probe':
+        val_data_.to_csv(os.path.join(config.log_path,
                                       f'data_out_mode-{config.mode}_type-{config.emotion_or_appraisal}_date-{datetime.now().strftime("%Y_%m_%d__%H_%M_%S")}.csv'))
 
 
@@ -432,6 +432,8 @@ def do_probe(config, logger, model, dm, trainer, test_data, is_distributed=False
             mean_last_hidden.append(batch_result["mean_last_hidden"])
         
         logger.info(f"Collected {len(emotion_logits)} batches of emotion logits.")
+        logger.info(f"emotion logits shape: {emotion_logits[0].shape}")
+
         emotion_logits = torch.cat(emotion_logits, dim=0).to(config.device)
         emotion_labels = torch.cat(emotion_labels, dim=0).to(config.device)
         appraisal_labels = torch.cat(appraisal_labels, dim=0).to(config.device)
@@ -446,7 +448,7 @@ def do_probe(config, logger, model, dm, trainer, test_data, is_distributed=False
         output_dir = config.output_dir if hasattr(config, 'output_dir') else './output'
         os.makedirs(output_dir, exist_ok=True)
         
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         hidden_file_path = os.path.join(output_dir, f'hidden_states_{timestamp}.pt')
         labels_file_path = os.path.join(output_dir, f'appraisal_labels_{timestamp}.pt')
 

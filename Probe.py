@@ -1,19 +1,38 @@
 import torch
 import numpy as np
-from sklearn.linear_model import ElasticNet
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score
+import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import TensorDataset, DataLoader
+from sklearn.linear_model import ElasticNetCV
+from sklearn.metrics import r2_score
 
-def train_elasticnet(hidden_states, labels, alpha=0.1, l1_ratio=0.5):
-    """ Train an ElasticNet model on the provided hidden states and labels. """
-    model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
-    model.fit(hidden_states, labels)
-    return model
+class DataHandler:
+    def __init__(self, train_hidden_path, train_labels_path, test_hidden_path, test_labels_path):
+        # Load data
+        self.train_features = torch.load(train_hidden_path).float()
+        self.train_labels = torch.load(train_labels_path).float()
+        self.test_features = torch.load(test_hidden_path).float()
+        self.test_labels = torch.load(test_labels_path).float()
+
+        # Normalize features
+        self.scaler = StandardScaler()
+        self.train_features = self.scaler.fit_transform(self.train_features.numpy())
+        self.test_features = self.scaler.transform(self.test_features.numpy())
+
+    def get_dataloaders(self, batch_size=32):
+        # Create TensorDatasets
+        train_dataset = TensorDataset(torch.from_numpy(self.train_features).float(), torch.from_numpy(self.train_labels).float())
+        test_dataset = TensorDataset(torch.from_numpy(self.test_features).float(), torch.from_numpy(self.test_labels).float())
+
+        # Create DataLoaders
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        return train_loader, test_loader
+    
 
 class SimpleMLP(nn.Module):
-    """ A simple one-layer MLP for regression tasks. """
     def __init__(self, input_size, output_size):
         super(SimpleMLP, self).__init__()
         self.fc = nn.Linear(input_size, output_size)
@@ -21,52 +40,68 @@ class SimpleMLP(nn.Module):
     def forward(self, x):
         return self.fc(x)
 
-def train_mlp(hidden_states, labels, epochs=50, learning_rate=0.01):
-    """ Train a simple MLP on the provided hidden states and labels. """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SimpleMLP(hidden_states.shape[1], labels.shape[1]).to(device)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    hidden_states, labels = torch.tensor(hidden_states, dtype=torch.float32).to(device), torch.tensor(labels, dtype=torch.float32).to(device)
 
-    for epoch in range(epochs):
-        model.train()
-        optimizer.zero_grad()
-        outputs = model(hidden_states)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
+class MLPModel:
+    def __init__(self, input_size, output_size):
+        self.model = SimpleMLP(input_size, output_size)
+        self.criterion = nn.MSELoss()
+        self.optimizer = None
 
-    return model
+    def train(self, train_loader, device='cpu', epochs=50):
+        self.model.to(device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        for epoch in range(epochs):
+            self.model.train()
+            for inputs, targets in train_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
+                self.optimizer.zero_grad()
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets)
+                loss.backward()
+                self.optimizer.step()
 
-def load_and_train_models(hidden_file_path, labels_file_path):
-    # Load hidden states and labels
-    hidden_states = torch.load(hidden_file_path)
-    labels = torch.load(labels_file_path)
+    def evaluate(self, test_loader, device='cpu'):
+        self.model.eval()
+        predictions = []
+        with torch.no_grad():
+            for inputs, _ in test_loader:
+                inputs = inputs.to(device)
+                outputs = self.model(inputs)
+                predictions.append(outputs.cpu().numpy())
+        predictions = np.concatenate(predictions, axis=0)
+        return predictions
 
-    # Convert tensors to numpy for sklearn compatibility
-    hidden_states_np = hidden_states.numpy()
-    labels_np = labels.numpy()
 
-    # Train ElasticNet
-    elastic_model = train_elasticnet(hidden_states_np, labels_np)
-    print("Trained ElasticNet Model")
+class ElasticNetModel:
+    def __init__(self):
+        self.model = None
 
-    # Train MLP
-    mlp_model = train_mlp(hidden_states, labels)
-    print("Trained MLP Model")
+    def train(self, train_features, train_labels):
+        self.model = ElasticNetCV(cv=5, random_state=0)
+        self.model.fit(train_features, train_labels)
 
-    # Evaluate models
-    predicted_labels_elastic = elastic_model.predict(hidden_states_np)
-    predicted_labels_mlp = mlp_model(torch.tensor(hidden_states_np, dtype=torch.float32)).detach().numpy()
+    def evaluate(self, test_features, test_labels):
+        predictions = self.model.predict(test_features)
+        return r2_score(test_labels, predictions)
+    
+    
+def main():
+    data_handler = DataHandler('train_hidden_states.pt', 'train_appraisal_labels.pt', 'test_hidden_states.pt', 'test_appraisal_labels.pt')
+    train_loader, test_loader = data_handler.get_dataloaders()
 
-    r2_elastic = r2_score(labels_np, predicted_labels_elastic)
-    r2_mlp = r2_score(labels_np, predicted_labels_mlp)
-
+    # ElasticNet Model
+    en_model = ElasticNetModel()
+    en_model.train(data_handler.train_features, data_handler.train_labels)
+    r2_elastic = en_model.evaluate(data_handler.test_features, data_handler.test_labels)
     print(f"ElasticNet R2 Score: {r2_elastic}")
+
+    # MLP Model
+    mlp_model = MLPModel(input_size=data_handler.train_features.shape[1], output_size=data_handler.train_labels.shape[1])
+    mlp_model.train(train_loader)
+    mlp_predictions = mlp_model.evaluate(test_loader)
+    r2_mlp = r2_score(data_handler.test_labels, mlp_predictions)
     print(f"MLP R2 Score: {r2_mlp}")
 
-    return elastic_model, mlp_model, r2_elastic, r2_mlp
+if __name__ == "__main__":
+    main()
 
-# Example usage:
-# elastic_model, mlp_model, r2_elastic, r2_mlp = load_and_train_models('hidden_states.pt', 'appraisal_labels.pt')
