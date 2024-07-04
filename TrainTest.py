@@ -50,17 +50,25 @@ def split_train_val_test(config, path_train, path_test):
     unique_text_ids = data_test['text_id'].unique()
     test = data_test[data_test['text_id'].isin(unique_text_ids)]
     
+    # Define default aggregation for all other columns that do not need special handling
+    default_aggregations = {col: 'first' for col in test.columns if col not in config.attributes and col not in ['hidden_emo_text', 'emotion', 'annotator_emotion']}
+
     # Aggregate appraisal scores by averaging and get the majority for the emotion column
     aggregation_dict = {appraisal: 'mean' for appraisal in config.attributes}
-    aggregation_dict.update({
-        'hidden_emo_text': 'first',  # Assuming text is identical for the same text_id
-        'emotion': 'first'  # Preserve the original emotion label from the main data
-        })
-    # aggregation_dict['hidden_emo_text','emotion'] = 'first'  # Assuming text is identical for the same text_id
+    aggregation_dict['hidden_emo_text'] = 'first'  # Assuming text is identical for the same text_id
+    aggregation_dict['emotion'] = 'first'  # Preserve the original emotion label from the main data
     aggregation_dict['annotator_emotion'] = lambda x: get_majority_emotion(x)
+    aggregation_dict.update(default_aggregations)  # Include default aggregations
 
-    test = test.groupby('text_id').agg(aggregation_dict).reset_index()
+    # aggregation_dict['hidden_emo_text','emotion'] = 'first'  # Assuming text is identical for the same text_id
+
+    test = test.groupby('text_id', as_index=False).agg(aggregation_dict).reset_index()
     
+    # In case an unwanted 'index' column appears
+    test = test.drop(columns=['index'], errors='ignore')
+
+
+
     # Ensure no overlap of text_ids between the test set and remaining training data
     train_val = data[~data['text_id'].isin(unique_text_ids)]
     
