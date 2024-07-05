@@ -11,20 +11,21 @@ from sklearn.linear_model import ElasticNetCV ,MultiTaskElasticNetCV
 from sklearn.metrics import r2_score
 
 class DataHandler:
-    def __init__(self, train_hidden_path, train_labels_path, test_hidden_path, test_labels_path, train_csv_path, test_csv_path):
+    def __init__(self, train_hidden_path, train_labels_path, test_hidden_path, test_labels_path, train_csv_path, test_csv_path, categorical_columns, numeric_columns):
         # Load data
         try:
             self.train_features = torch.load(train_hidden_path).float().cpu().numpy()  # Convert to NumPy arrays here
             self.train_labels = torch.load(train_labels_path).float().cpu().numpy()
             self.test_features = torch.load(test_hidden_path).float().cpu().numpy()
             self.test_labels = torch.load(test_labels_path).float().cpu().numpy()
+
         except RuntimeError as e:
             print("Error during tensor concatenation: " + str(e))
             print("ls path: " +str(os.listdir()))
             raise
 
         # Load and process CSV data
-        self.load_and_process_csv(train_csv_path, test_csv_path)
+        self.load_and_process_csv(train_csv_path, test_csv_path, categorical_columns ,numeric_columns)
 
         # Normalize features
         self.scaler = StandardScaler()
@@ -62,35 +63,38 @@ class DataHandler:
 
         return train_loaders, test_loaders
 
-    def load_and_process_csv(self, train_csv_path, test_csv_path):
-        # Define columns to extract from CSV
-        columns = ['event_duration', 'emotion_duration', 'intensity', 'round_number', 'age', 'gender', 'education',
-                   'ethnicity', 'extravert', 'critical', 'dependable', 'anxious', 'open', 'quiet', 'sympathetic',
-                   'disorganized', 'calm', 'conventional']
-        # Load CSV files
-        train_csv_data = pd.read_csv(train_csv_path, usecols=columns)
-        test_csv_data = pd.read_csv(test_csv_path, usecols=columns)
+    def load_and_process_csv(self, train_csv_path, test_csv_path, categorical_columns, numeric_columns):
+        columns = categorical_columns + numeric_columns
 
-        # Convert categorical data to numerical if necessary
-        train_csv_data = self.encode_features(train_csv_data)
-        test_csv_data = self.encode_features(test_csv_data)
+        if columns:
+            # Load CSV files
+            train_csv_data = pd.read_csv(train_csv_path, usecols=columns)
+            test_csv_data = pd.read_csv(test_csv_path, usecols=columns)
 
-        # Convert to NumPy and concatenate with existing features
-        self.train_features = np.hstack((self.train_features, train_csv_data.to_numpy()))
-        self.test_features = np.hstack((self.test_features, test_csv_data.to_numpy()))
+            # Convert categorical data to numerical if necessary
+            train_csv_data = self.encode_features(train_csv_data, categorical_columns, numeric_columns)
+            test_csv_data = self.encode_features(test_csv_data, categorical_columns, numeric_columns)
 
-    def encode_features(self, df):
-        # Assuming 'gender', 'education', 'ethnicity' might be categorical
-        categorical_columns = ['gender', 'education', 'ethnicity']
+            # Convert to NumPy and concatenate with existing features
+            self.train_labels = np.hstack((self.train_labels, train_csv_data))
+            self.test_labels = np.hstack((self.test_labels, test_csv_data))
+    
+    def encode_features(self, df, categorical_columns, numeric_columns):
+        # Convert categorical data to numeric codes and ensure all data is appropriate for tensor conversion
         for col in categorical_columns:
-            df[col] = pd.Categorical(df[col]).codes
-        return df
+            df[col] = pd.Categorical(df[col]).codes.astype(np.float32)  # Convert categories to codes then to float32
+
+        for col in numeric_columns:
+            df[col] = df[col].astype(np.float32)  # Ensure numeric columns are also in float32
+
+        return df.values  # Return as numpy array
     
     def print_first_rows(self, num_rows=5):
         print("First rows of train labels:")
         print(self.train_labels[:num_rows])
         print("First rows of test labels:")
         print(self.test_labels[:num_rows])
+
 
 class MultiElasticNetModel:
     def __init__(self):
@@ -110,7 +114,7 @@ class ElasticNetModel:
         # Maintain a list of models if you have multiple targets
         self.models = []
         self.attributes = attributes
-
+        self.train_predictions = []
 
     def train(self, train_features, train_labels):
         # Train a separate model for each column in train_labels
@@ -119,16 +123,23 @@ class ElasticNetModel:
             model.fit(train_features, train_labels[:, i])
             self.models.append(model)
 
-    def evaluate(self, test_features, test_labels):
+            # Store training predictions
+            self.train_predictions.append(model.predict(train_features))
+
+    def evaluate(self, features, labels, training=False):
         # Evaluate each model and return the R2 score for each
+        predictions_list = self.train_predictions if training else []
         r2_scores = {}
         for i, model in enumerate(self.models):
-            predictions = model.predict(test_features)
-            r2 = r2_score(test_labels[:, i], predictions)
+            if not training:
+                predictions = model.predict(features)
+                predictions_list.append(predictions)
+            else:
+                predictions = predictions_list[i]
+            r2 = r2_score(labels[:, i], predictions)
             r2_scores[self.attributes[i]] = r2
         return r2_scores
-
-
+    
 class MultiMLP(nn.Module):
     def __init__(self, input_size, output_size):
         super(MultiMLP, self).__init__()
@@ -221,12 +232,20 @@ class MLPModel:
 
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     attributes = ['predict_event', 'pleasantness', 'attention', 'other_responsibility', 'chance_control', 'social_norms']
+
+    categorical_columns = ['gender', 'education', 'ethnicity', 'event_duration', 'emotion_duration', 'round_number']
+
+    numeric_columns = ['intensity', 'age', 'extravert', 'critical', 
+                'dependable', 'anxious', 'open', 'quiet', 'sympathetic', 'disorganized', 'calm', 'conventional']
+
+    # categorical_columns = ['round_number']
+    # numeric_columns = ['intensity']
 
     data_handler = DataHandler('output/train_hidden_states.pt', 'output/train_appraisal_labels.pt', 
                                'output/test_hidden_states.pt', 'output/test_appraisal_labels.pt',
-                               'data/enVent_new_Data_train.csv', 'data/enVent_new_Data_test.csv')
+                               'data/enVent_new_Data_train.csv', 'data/enVent_new_Data_test.csv', 
+                               categorical_columns, numeric_columns)
     data_handler.print_first_rows()
     train_loader, test_loader = data_handler.get_dataloaders()
 
@@ -238,12 +257,21 @@ def main():
     # r2_elastic = en_model_multi.evaluate(data_handler.test_features, data_handler.test_labels)
     # print(f"ElasticNet R2 Score: {r2_elastic}")
 
-    # # ElasticNet Model
-    # en_model = ElasticNetModel(attributes)
-    # en_model.train(data_handler.train_features, data_handler.train_labels)
-    # r2_scores_elastic = en_model.evaluate(data_handler.test_features, data_handler.test_labels)
-    # for attribute, r2_score in r2_scores_elastic.items():
-    #     print(f"ElasticNet R2 Score for {attribute}: {r2_score:.3f}")
+    # ElasticNet Model
+    en_model = ElasticNetModel(attributes+categorical_columns+numeric_columns)
+    en_model.train(data_handler.train_features, data_handler.train_labels)
+
+    train_r2_scores = en_model.evaluate(data_handler.train_features, data_handler.train_labels, training=True)
+    test_r2_scores = en_model.evaluate(data_handler.test_features, data_handler.test_labels, training=False)
+
+    # Printing R2 scores
+    print("Training R² Scores:")
+    for attribute, r2_score in train_r2_scores.items():
+        print(f"{attribute}: {r2_score:.3f}")
+
+    print("\nTesting R² Scores:")
+    for attribute, r2_score in test_r2_scores.items():
+        print(f"{attribute}: {r2_score:.3f}")
 
     # # Multi MLP Model
     # mlp_model = MultiMLPModel(input_size=data_handler.train_features.shape[1], output_size=data_handler.train_labels.shape[1])
