@@ -7,25 +7,32 @@ import torch.optim as optim
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.linear_model import ElasticNetCV ,MultiTaskElasticNetCV
-
-from sklearn.metrics import r2_score
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.metrics import r2_score, f1_score, accuracy_score
 
 class DataHandler:
-    def __init__(self, train_hidden_path, train_labels_path, test_hidden_path, test_labels_path, train_csv_path, test_csv_path, categorical_columns, numeric_columns):
+    def __init__(self, train_hidden_path, train_labels_path, 
+                 test_hidden_path, test_labels_path, 
+                 train_csv_path, test_csv_path, 
+                 categorical_columns, numeric_columns,
+                 is_numerical):
         # Load data
         try:
             self.train_features = torch.load(train_hidden_path).float().cpu().numpy()  # Convert to NumPy arrays here
             self.train_labels = torch.load(train_labels_path).float().cpu().numpy()
             self.test_features = torch.load(test_hidden_path).float().cpu().numpy()
             self.test_labels = torch.load(test_labels_path).float().cpu().numpy()
-
+            self.is_numerical = is_numerical
         except RuntimeError as e:
             print("Error during tensor concatenation: " + str(e))
             print("ls path: " +str(os.listdir()))
             raise
-
+        
         # Load and process CSV data
-        self.load_and_process_csv(train_csv_path, test_csv_path, categorical_columns ,numeric_columns)
+        if is_numerical:
+            self.load_and_process_csv(train_csv_path, test_csv_path, numeric_columns)
+        else:
+            self.load_and_process_csv(train_csv_path, test_csv_path, categorical_columns)
 
         # Normalize features
         self.scaler = StandardScaler()
@@ -63,30 +70,31 @@ class DataHandler:
 
         return train_loaders, test_loaders
 
-    def load_and_process_csv(self, train_csv_path, test_csv_path, categorical_columns, numeric_columns):
-        columns = categorical_columns + numeric_columns
+    def load_and_process_csv(self, train_csv_path, test_csv_path, columns):
+        # Load CSV files
+        train_csv_data = pd.read_csv(train_csv_path, usecols=columns)
+        test_csv_data = pd.read_csv(test_csv_path, usecols=columns)
 
-        if columns:
-            # Load CSV files
-            train_csv_data = pd.read_csv(train_csv_path, usecols=columns)
-            test_csv_data = pd.read_csv(test_csv_path, usecols=columns)
+        # Convert categorical data to numerical if necessary
+        train_csv_data = self.encode_features(train_csv_data, columns)
+        test_csv_data = self.encode_features(test_csv_data, columns )
 
-            # Convert categorical data to numerical if necessary
-            train_csv_data = self.encode_features(train_csv_data, categorical_columns, numeric_columns)
-            test_csv_data = self.encode_features(test_csv_data, categorical_columns, numeric_columns)
-
+        if self.is_numerical:
             # Convert to NumPy and concatenate with existing features
             self.train_labels = np.hstack((self.train_labels, train_csv_data))
             self.test_labels = np.hstack((self.test_labels, test_csv_data))
+        else:
+            self.train_labels =  train_csv_data
+            self.test_labels =  test_csv_data
+
     
-    def encode_features(self, df, categorical_columns, numeric_columns):
+    def encode_features(self, df, columns):
         # Convert categorical data to numeric codes and ensure all data is appropriate for tensor conversion
-        for col in categorical_columns:
-            df[col] = pd.Categorical(df[col]).codes.astype(np.float32)  # Convert categories to codes then to float32
-
-        for col in numeric_columns:
-            df[col] = df[col].astype(np.float32)  # Ensure numeric columns are also in float32
-
+        for col in columns:
+            if self.is_numerical:
+                df[col] = df[col].astype(np.float32)  # Ensure numeric columns are also in float32
+            else:
+                df[col] = pd.Categorical(df[col]).codes 
         return df.values  # Return as numpy array
     
     def print_first_rows(self, num_rows=5):
@@ -139,7 +147,47 @@ class ElasticNetModel:
             r2 = r2_score(labels[:, i], predictions)
             r2_scores[self.attributes[i]] = r2
         return r2_scores
-    
+
+
+class LogisticModel:
+    def __init__(self, attributes):
+        self.models = []
+        self.attributes = attributes
+        self.train_predictions = []
+
+    def train(self, train_features, train_labels):
+        """ Train a separate logistic regression model for each categorical label. """
+        for i, attr in enumerate(self.attributes):
+            # Using a logistic regression model with cross-validation
+            # model = LogisticRegressionCV(cv=5, random_state=0, max_iter=10000, multi_class='multinomial', solver='lbfgs')
+            model = LogisticRegressionCV(cv=5, random_state=0, max_iter=10000, multi_class='multinomial', solver='saga', penalty='l2', Cs=[0.1, 1, 10])
+           
+            model.fit(train_features, train_labels[:, i])
+            self.models.append(model)
+
+            # Store training predictions for later evaluation
+            self.train_predictions.append(model.predict(train_features))
+
+    def evaluate(self, features, labels, training=False):
+        """ Evaluate each model and return accuracy and F1 score for each. """
+        predictions_list = self.train_predictions if training else []
+        accuracy_scores = {}
+        f1_scores = {}
+        for i, model in enumerate(self.models):
+            if not training:
+                predictions = model.predict(features)
+                predictions_list.append(predictions)
+            else:
+                predictions = predictions_list[i]
+
+            accuracy = accuracy_score(labels[:, i], predictions)
+            f1 = f1_score(labels[:, i], predictions, average='weighted')
+            accuracy_scores[self.attributes[i]] = accuracy
+            f1_scores[self.attributes[i]] = f1
+
+        return accuracy_scores, f1_scores
+
+
 class MultiMLP(nn.Module):
     def __init__(self, input_size, output_size):
         super(MultiMLP, self).__init__()
@@ -234,44 +282,68 @@ class MLPModel:
 def main():
     attributes = ['predict_event', 'pleasantness', 'attention', 'other_responsibility', 'chance_control', 'social_norms']
 
-    categorical_columns = ['gender', 'education', 'ethnicity', 'event_duration', 'emotion_duration', 'round_number']
-
+    categorical_columns = ['gender', 'education', 'ethnicity', 'event_duration', 'emotion_duration']
+    categorical_columns = ['education']
     numeric_columns = ['intensity', 'age', 'extravert', 'critical', 
                 'dependable', 'anxious', 'open', 'quiet', 'sympathetic', 'disorganized', 'calm', 'conventional']
 
+    is_numerical = False
     # categorical_columns = ['round_number']
     # numeric_columns = ['intensity']
 
     data_handler = DataHandler('output/train_hidden_states.pt', 'output/train_appraisal_labels.pt', 
                                'output/test_hidden_states.pt', 'output/test_appraisal_labels.pt',
                                'data/enVent_new_Data_train.csv', 'data/enVent_new_Data_test.csv', 
-                               categorical_columns, numeric_columns)
+                               categorical_columns, numeric_columns, is_numerical)
     data_handler.print_first_rows()
     train_loader, test_loader = data_handler.get_dataloaders()
 
-    separate_train_loaders, separate_test_loaders = data_handler.get_dataloaders_for_each_label(batch_size=32, attributes=attributes)
 
-    # # Multi ElasticNet Model
-    # en_model_multi = MultiElasticNetModel()
-    # en_model_multi.train(data_handler.train_features, data_handler.train_labels)
-    # r2_elastic = en_model_multi.evaluate(data_handler.test_features, data_handler.test_labels)
-    # print(f"ElasticNet R2 Score: {r2_elastic}")
+    if is_numerical:
+        separate_train_loaders, separate_test_loaders = data_handler.get_dataloaders_for_each_label(batch_size=32, attributes=attributes+numeric_columns)
+        # # Multi ElasticNet Model
+        # en_model_multi = MultiElasticNetModel()
+        # en_model_multi.train(data_handler.train_features, data_handler.train_labels)
+        # r2_elastic = en_model_multi.evaluate(data_handler.test_features, data_handler.test_labels)
+        # print(f"ElasticNet R2 Score: {r2_elastic}")
 
-    # ElasticNet Model
-    en_model = ElasticNetModel(attributes+categorical_columns+numeric_columns)
-    en_model.train(data_handler.train_features, data_handler.train_labels)
+        # ElasticNet Model
+        en_model = ElasticNetModel(attributes+numeric_columns)
+        en_model.train(data_handler.train_features, data_handler.train_labels)
+        print("Training done:\n")
 
-    train_r2_scores = en_model.evaluate(data_handler.train_features, data_handler.train_labels, training=True)
-    test_r2_scores = en_model.evaluate(data_handler.test_features, data_handler.test_labels, training=False)
+        train_r2_scores = en_model.evaluate(data_handler.train_features, data_handler.train_labels, training=True)
+        test_r2_scores = en_model.evaluate(data_handler.test_features, data_handler.test_labels, training=False)
 
-    # Printing R2 scores
-    print("Training R² Scores:")
-    for attribute, r2_score in train_r2_scores.items():
-        print(f"{attribute}: {r2_score:.3f}")
+        # Printing R2 scores
+        print("Training R² Scores:")
+        for attribute, r2_score in train_r2_scores.items():
+            print(f"{attribute}: {r2_score:.3f}")
 
-    print("\nTesting R² Scores:")
-    for attribute, r2_score in test_r2_scores.items():
-        print(f"{attribute}: {r2_score:.3f}")
+        print("\nTesting R² Scores:")
+        for attribute, r2_score in test_r2_scores.items():
+            print(f"{attribute}: {r2_score:.3f}")
+
+    else:
+        separate_train_loaders, separate_test_loaders = data_handler.get_dataloaders_for_each_label(batch_size=32, attributes=categorical_columns)
+        categorical_model = LogisticModel(categorical_columns)
+        categorical_model.train(data_handler.train_features, data_handler.train_labels)
+        print("Training done:\n")
+        train_accuracy, train_f1 = categorical_model.evaluate(data_handler.train_features, data_handler.train_labels, training=True)
+        test_accuracy, test_f1 = categorical_model.evaluate(data_handler.test_features, data_handler.test_labels, training=False)
+
+        # Printing accuracy and F1 scores
+        print("Training Accuracy and F1 Scores:")
+        for attribute in categorical_columns:
+            print(f"{attribute} - Accuracy: {train_accuracy[attribute]:.3f}, F1 Score: {train_f1[attribute]:.3f}")
+
+        print("\nTesting Accuracy and F1 Scores:")
+        for attribute in categorical_columns:
+            print(f"{attribute} - Accuracy: {test_accuracy[attribute]:.3f}, F1 Score: {test_f1[attribute]:.3f}")
+
+
+
+
 
     # # Multi MLP Model
     # mlp_model = MultiMLPModel(input_size=data_handler.train_features.shape[1], output_size=data_handler.train_labels.shape[1])

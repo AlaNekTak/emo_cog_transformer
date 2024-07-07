@@ -281,7 +281,7 @@ def test(model_path ,config, logger):
                 if config.expert_mode == 'double':
                     appraisal_logits.append(batch_result["appraisal_logits"].view(-1, 1))
 
-                elif config.expert_mod == 'mixed':
+                elif config.expert_mode == 'mixed':
                     # Prepare to reshape appraisal logits
                     batch_appraisal_logits = [batch_result["appraisal_logits"][i] for i in range(len(batch_result["appraisal_logits"]))]
                     batch_appraisal_logits = torch.cat(batch_appraisal_logits, dim=1)  # Should reshape each batch's logits to [32, 7]

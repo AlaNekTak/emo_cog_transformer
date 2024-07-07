@@ -121,6 +121,14 @@ class MixExp_Emotion_Classifier(pl.LightningModule):
         self.emotion_loss_func = nn.CrossEntropyLoss()
         self.dropout = nn.Dropout(self.config.dropout_rate)
         
+
+        # # Loss scalers for each appraisal
+        # self.appraisal_loss_scalers = nn.ModuleList([
+        #     RunningMaxLossScaler() for _ in range(self.config.n_attributes)
+        # ])
+        self.appraisal_loss_scalers = [RunningMaxLossScaler() for _ in range(self.config.n_attributes)]
+        self.emotion_loss_scaler = RunningMaxLossScaler()
+
         ## Weight initialization
         self.save_hyperparameters()
         self.initialize_weights()
@@ -165,16 +173,19 @@ class MixExp_Emotion_Classifier(pl.LightningModule):
             assert emotion_logits.shape == (emotion_labels.shape[0],self.config.class_num), "Mismatch in batch size between logits and labels"
             emotion_loss = self.emotion_loss_func(emotion_logits, emotion_labels)  # Assuming emotion labels are the last
             appraisal_losses = [self.appraisal_loss_func(logits.view(-1), appraisal_labels[:, i]) for i, logits in enumerate(appraisal_logits)] # or logits.view(-1,1), appraisal_labels[:, i:i+1] [10, 1], but [:, i] would make it [10]
-            total_loss += emotion_loss 
-            total_loss += sum(appraisal_losses)
-            loss_dict['emotion'] = emotion_loss.item()
-            loss_dict['appraisals'] = [loss.item() for loss in appraisal_losses]
+            scaled_emotion_loss = self.emotion_loss_scaler.update_and_scale_loss(emotion_loss)
+            scaled_appraisal_losses = [scaler.update_and_scale_loss(loss) 
+                                       for scaler, loss in zip(self.appraisal_loss_scalers, appraisal_losses)]
+            total_loss += scaled_emotion_loss 
+            total_loss += sum(scaled_appraisal_losses)
+            loss_dict['emotion'] = scaled_emotion_loss.item()
+            loss_dict['appraisals'] = [loss.item() for loss in scaled_appraisal_losses]
 
         return total_loss, emotion_logits, appraisal_logits, gate_weights, loss_dict
 
     def training_step(self, batch, batch_index):
         total_loss, emotion_logits, appraisal_logits,gate_weights, loss_dict = self(**batch)
-        self.log("train_loss", total_loss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("train_loss", total_loss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)        
         self.log("emotion_loss", loss_dict['emotion'], prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
         
         for idx, loss in enumerate(loss_dict['appraisals']):
@@ -196,6 +207,16 @@ class MixExp_Emotion_Classifier(pl.LightningModule):
     def validation_step(self, batch, batch_index):
         total_loss, emotion_logits, appraisal_logits, gate_weights, loss_dict= self(**batch)
         self.log("val_loss", total_loss, prog_bar = True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("emotion_loss", loss_dict['emotion'], prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
+        
+        for idx, loss in enumerate(loss_dict['appraisals']):
+                self.log(f'appraisal_{idx}_loss', loss, on_step=False, on_epoch=True)
+
+        if self.config.gate_mechanism == 'soft':
+            mean_gate_weights = gate_weights.mean(dim=0)
+            for idx, weight in enumerate(mean_gate_weights):
+                self.log(f'gate_weight_{idx}', weight, on_step=False, on_epoch=True)
+
         return {"val_loss": total_loss, "emotion_logits":emotion_logits,"appraisal_logits":appraisal_logits,
                  "emotion_labels": batch["emotion_labels"], "appraisal_labels": batch["appraisal_labels"]}
 
@@ -320,9 +341,9 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
             assert emotion_logits.shape == (emotion_labels.shape[0],self.config.class_num), "Mismatch in batch size between logits and labels"
             emotion_loss = self.emotion_loss_func(emotion_logits, emotion_labels)  # Assuming emotion labels are the last
             appraisal_loss = self.appraisal_loss_func(appraisal_logits.view(-1, 1), appraisal_labels)
-            total_loss += emotion_loss + appraisal_loss
-            loss_dict['emotion'] = emotion_loss.item()
-            loss_dict['appraisals'] = appraisal_loss.item()
+            # total_loss += emotion_loss + appraisal_loss
+            # loss_dict['emotion'] = emotion_loss.item()
+            # loss_dict['appraisals'] = appraisal_loss.item()
 
             # Apply dynamic scaling
             scaled_emotion_loss = self.emotion_loss_scaler.update_and_scale_loss(emotion_loss)
