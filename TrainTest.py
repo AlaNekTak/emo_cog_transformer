@@ -14,6 +14,7 @@ from Config import  NoOpCallback
 from Data import GEA_Data_Module, GEA_Dataset
 from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier, ProbeEmotionClassifier
 from ModelOptimizer import ModelOptimizer
+from collections import defaultdict
 
 
 def split_train_val(path, test_ratio, encoding, random_state):
@@ -361,14 +362,95 @@ def test(model_path ,config, logger):
             val_data['emo_predictions'] = emo_labels_np
 
         return val_data
-        
+
+    def sptoken_emo_evaluation(config, model, dm, trainer, val_data, is_distributed=False):
+        logger.info("\n\nStarting prediction model...\n---------------------------------")
+        predict_results = trainer.predict(model, datamodule=dm)
+        emotion_logits, emotion_labels, appraisal_labels, mean_last_hidden, attention = [], [], [], [], []
+
+        try:
+            # Extract logits and labels from the results
+            for idx, batch_result in enumerate(predict_results):
+                emotion_logits.append(batch_result["emotion_logits"])
+                emotion_labels.append(batch_result["emotion_labels"])
+                appraisal_labels.append(batch_result["appraisal_labels"])
+
+                # Focus on [CLS] token attentions to and from last 7 tokens
+                current_attention = batch_result["attention"]
+                cls_to_last7 = current_attention[:, :, 0, -7:]  # Shape: [num_heads, 1, 7]
+                last7_to_cls = current_attention[:, :, -7:, 0]  # Shape: [num_heads, 7, 1]
+                    
+                # Average over heads
+                cls_to_last7_avg = cls_to_last7.mean(axis=0)
+                last7_to_cls_avg = last7_to_cls.mean(axis=0)
+                attention.append((cls_to_last7_avg, last7_to_cls_avg))
+
+            logger.info(f"Collected {len(emotion_logits)} emotion logit batches from predict.")
+            logger.info(f"emotion logit shape {emotion_logits[0].shape} ")
+
+            # Concatenate all batches into a single tensor along the batch dimension
+            emotion_logits = torch.cat(emotion_logits, dim=0).to(config.device)
+            emotion_labels = torch.cat(emotion_labels, dim=0).to(config.device)
+            appraisal_labels = torch.cat(appraisal_labels, dim=0).to(config.device)
+
+            # Organize attention by emotion labels
+            attention_by_label = defaultdict(list)
+            for logits, labels, att in zip(emotion_logits, emotion_labels, attention):
+                label = labels.item()  # Assuming single label per batch
+                attention_by_label[label].append(att)
+
+            # Compute average attention per label
+            average_attention_by_label = {}
+            for label, att_list in attention_by_label.items():
+                # Average over all batches corresponding to each label
+                cls_to_last7_avg = np.mean([att[0] for att in att_list], axis=0)
+                last7_to_cls_avg = np.mean([att[1] for att in att_list], axis=0)
+                average_attention_by_label[label] = (cls_to_last7_avg, last7_to_cls_avg)
+                
+        except RuntimeError as e:
+            logger.error("Error during tensor concatenation: " + str(e))
+            raise
+
+        if not is_distributed: #torch.distributed.get_rank() == 0 or 
+            probs = F.softmax(emotion_logits, dim=1)
+            emo_predictions = torch.max(probs, 1)[1]
+            emo_predictions_np = emo_predictions.cpu().numpy()
+            emo_true_labels_np = emotion_labels.cpu().numpy()   
+    
+            # Calculate Accuracy
+            accuracy = accuracy_score(emo_true_labels_np, emo_predictions_np)
+            logger.info(f"Accuracy: {accuracy:.4f}")
+            
+            # Calculate AUC-ROC (binary classification)
+            if probs.shape[1] == 2:  # Binary classification check
+                # Assuming the positive class probability is the second column
+                roc_auc = roc_auc_score(emo_true_labels_np, probs[:, 1].cpu().numpy())
+                logger.info(f"AUC ROC: {roc_auc:.4f}")
+            else:
+                # Multi-class AUC-ROC (assuming one-vs-rest calculation)
+                logger.info(f'emo_true_labels_np: {emo_true_labels_np.shape}')
+                logger.info(f'probs:  {probs.cpu().numpy().shape}')
+                roc_auc = roc_auc_score(emo_true_labels_np , probs.cpu().numpy(), multi_class='ovr')
+                logger.info(f"AUC ROC (One-vs-Rest): {roc_auc:.4f}")
+            
+            # Calculate F1 Score
+            f1 = f1_score(emo_true_labels_np, emo_predictions_np, average='weighted')
+            logger.info(f"F1 Score: {f1:.4f}")
+
+            reverse_emo_dict = {v: k for k, v in config.emo_dict.items()}
+            emo_labels_np = np.array([reverse_emo_dict[idx] for idx in emo_predictions_np])
+            
+            # Append predictions to the original validation DataFrame
+            val_data['emo_predictions'] = emo_labels_np
+
+        return val_data    
         
     if config.emotion_or_appraisal == 'both':
         if config.expert_mode == 'double':
             model = DoubleExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
         elif config.expert_mode == 'mixed':
             model = MixExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
-        elif config.expert_mode == 'probe':
+        elif config.expert_mode == 'probe' or config.expert_mode == 'sptoken':
             model = ProbeEmotionClassifier.load_from_checkpoint(model_path, config = config).to(config.device)
 
     else:
@@ -401,6 +483,8 @@ def test(model_path ,config, logger):
     elif config.emotion_or_appraisal == 'both':
             if config.expert_mode == 'probe':
                 do_probe(config,logger, model, GEA_data_module, trainer, test_data, is_distributed)
+            elif config.expert_mode == 'sptoken':
+                val_data_ = sptoken_emo_evaluation(config, model, GEA_data_module, trainer, test_data, is_distributed)
             else:
                 val_data_ = evalute_both(config, model, GEA_data_module, trainer, test_data, is_distributed)
             
@@ -430,7 +514,7 @@ def train(config, logger):
 def do_probe(config, logger, model, dm, trainer, test_data, is_distributed=False):
     logger.info("\n\nStarting probe model...\n---------------------------------")
     predict_results = trainer.predict(model, datamodule=dm)
-    emotion_logits, emotion_labels, appraisal_labels, mean_last_hidden = [], [], [], []
+    emotion_logits, emotion_labels, appraisal_labels, mean_last_hidden, attentions = [], [], [], [], []
 
     try:
         for idx, batch_result in enumerate(predict_results):

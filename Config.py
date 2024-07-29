@@ -13,7 +13,7 @@ class Config:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model_name = args.model_name
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.use_input_embeddings = False
+        self.use_input_embeddings = True
         self.load_from_checkpoint = False
         # self.checkpoint_dir = 'checkpoint_emotion.pth.tar'
         # self.checkpoint_dir = '/home1/nekouvag/local_files/lightning_logs/mixExpert2/checkpoints/model-epoch-16-val_loss-15.62.ckpt'

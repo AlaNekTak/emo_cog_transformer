@@ -45,7 +45,7 @@ class ModelOptimizer:
                 model = DoubleExp_Emotion_Classifier(self.config).to(self.config.device)
             elif self.config.expert_mode == 'mixed':
                 model = MixExp_Emotion_Classifier(self.config).to(self.config.device)
-            elif self.config.expert_mode == 'probe':
+            elif self.config.expert_mode == 'probe' or self.config.expert_mode == 'sptoken':
                 model = ProbeEmotionClassifier(self.config).to(self.config.device)
 
         # if self.config.load_from_checkpoint:

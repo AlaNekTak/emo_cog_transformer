@@ -444,19 +444,42 @@ class ProbeEmotionClassifier(pl.LightningModule):
         self.emotion_classifier = nn.Linear(self.pretrained_model.config.hidden_size, self.config.class_num)
         self.emotion_loss_func = nn.CrossEntropyLoss()
         self.dropout = nn.Dropout(self.config.dropout_rate)
+
+        if self.use_input_embeddings:
+            # Create a separate MLP for each appraisal variable
+            self.appraisal_mlps = nn.ModuleList([nn.Linear(1, self.pretrained_model.config.hidden_size) for _ in range(self.config.n_attributes)])
+
         self.save_hyperparameters()
         self.initialize_weights()
 
     def forward(self, input_ids=None, attention_mask=None, appraisal_labels=None, emotion_labels=None, inputs_embeds=None):
         if self.use_input_embeddings:
-            outputs = self.pretrained_model(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
-        else:
-            outputs = self.pretrained_model(input_ids=input_ids, attention_mask=attention_mask)
+            # Process each appraisal attribute through its corresponding MLP
+            # Ensure appraisal_labels is reshaped from [batch_size, n_attributes] to a list of [batch_size, 1] tensors
+            appraisal_embeddings = [mlp(attr.unsqueeze(-1)) for mlp, attr in zip(self.appraisal_mlps, appraisal_labels.float().transpose(0, 1))]
+            # Stack embeddings along the new dimension to match inputs_embeds feature dimension
+            appraisal_embeddings = torch.stack(appraisal_embeddings, dim=1)
 
-        mean_last_hidden = torch.mean(outputs.last_hidden_state, 1)
+            # Concatenate along the feature dimension assuming inputs_embeds is [batch_size, seq_length, hidden_size]
+            combined_embeddings = torch.cat([inputs_embeds, appraisal_embeddings], dim=1)
+
+            assert combined_embeddings.size(1) == inputs_embeds.size(1) + appraisal_embeddings.size(1), "Combined embedding size mismatch  [1, seq_length + number_of_attributes, hidden_size]"
+            combined_length = inputs_embeds.size(1) + appraisal_embeddings.size(1)
+            assert combined_length <= self.config.max_length, "Combined sequence length exceeds model capacity"
+            
+            # Extend attention_mask
+            appraisal_mask = torch.ones((attention_mask.size(0), appraisal_embeddings.size(1)), dtype=torch.long, device=attention_mask.device)
+            extended_attention_mask = torch.cat([attention_mask, appraisal_mask], dim=1)
+
+            outputs = self.pretrained_model(inputs_embeds=combined_embeddings, attention_mask=extended_attention_mask, output_attentions=True)
+        else:
+            outputs = self.pretrained_model(input_ids=input_ids, attention_mask=attention_mask, output_attentions=True)
+
+        # mean_last_hidden = torch.mean(outputs.last_hidden_state, 1)
+        mean_last_hidden = outputs.last_hidden_state[:, 0, :]
         emotion_pooled = self.dropout(F.relu(self.emotion_hidden(mean_last_hidden)))
         emotion_logits = self.emotion_classifier(emotion_pooled)
-
+    
         total_loss = 0
         loss_dict = {}
 
@@ -466,10 +489,10 @@ class ProbeEmotionClassifier(pl.LightningModule):
         total_loss += emotion_loss
         loss_dict['emotion'] = emotion_loss.item()
 
-        return total_loss, emotion_logits, loss_dict, mean_last_hidden
+        return total_loss, emotion_logits, loss_dict, mean_last_hidden, outputs.attentions[-1]
 
     def training_step(self, batch, batch_index):
-        total_loss, emotion_logits, loss_dict, mean_last_hidden = self(**batch)
+        total_loss, emotion_logits, loss_dict, mean_last_hidden, attention = self(**batch)
         self.log("train_loss", total_loss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
         self.log("emotion_loss", loss_dict['emotion'], prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
 
@@ -478,27 +501,30 @@ class ProbeEmotionClassifier(pl.LightningModule):
                 "emotion_logits":emotion_logits,
                 "emotion_labels": batch["emotion_labels"], 
                 "appraisal_labels": batch["appraisal_labels"],  
-                "mean_last_hidden": mean_last_hidden              
+                "mean_last_hidden": mean_last_hidden,
+                "attention": attention              
                 }
     
     def validation_step(self, batch, batch_index):
-        total_loss, emotion_logits, loss_dict, mean_last_hidden= self(**batch)
+        total_loss, emotion_logits, loss_dict, mean_last_hidden, attention= self(**batch)
         self.log("val_loss", total_loss, prog_bar = True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
         return {
                 "val_loss": total_loss, 
                 "emotion_logits":emotion_logits,
                 "emotion_labels": batch["emotion_labels"], 
                 "appraisal_labels": batch["appraisal_labels"],
-                "mean_last_hidden": mean_last_hidden              
+                "mean_last_hidden": mean_last_hidden,
+                "attention": attention              
                 }
 
     def predict_step(self, batch, batch_index):
-        _, emotion_logits, _, mean_last_hidden = self(**batch)
+        _, emotion_logits, _, mean_last_hidden, attention = self(**batch)
         return {
                 "emotion_logits":emotion_logits,
                 "emotion_labels": batch["emotion_labels"], 
                 "appraisal_labels": batch["appraisal_labels"],
-                "mean_last_hidden": mean_last_hidden              
+                "mean_last_hidden": mean_last_hidden,
+                "attention": attention              
                 }
 
     def configure_optimizers(self):

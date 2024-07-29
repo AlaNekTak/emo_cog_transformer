@@ -280,7 +280,8 @@ class MLPModel:
 
 
 def main():
-    attributes = ['predict_event', 'pleasantness', 'attention', 'other_responsibility', 'chance_control', 'social_norms']
+    attributes = ['predict_event', 'pleasantness', 'attention',
+            'other_responsblt', 'chance_control', 'social_norms']
 
     categorical_columns = ['gender', 'education', 'ethnicity', 'event_duration', 'emotion_duration']
     categorical_columns = ['education']

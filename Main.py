@@ -35,6 +35,7 @@ from Data import GEA_Data_Module, GEA_Dataset
 from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier
 from ModelOptimizer import ModelOptimizer
 from TrainTest import test, train, split_train_val_test, quick_test, inspect_data
+import torch.multiprocessing as mp
 
 
 # import IPython
@@ -56,7 +57,7 @@ def parse_args():
     parser.add_argument("--dropout_rate", type=float, default=0.2, help="Dropout rate")
     parser.add_argument("--warmup", type=float, default=0.1, help="Warmup")
     parser.add_argument("--weight_decay", type=float, default=0.001, help="weight decay")
-    parser.add_argument("--epochs", type=int, default=18, help="Number of epochs for training")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs for training")
     parser.add_argument("--data_encoding", type=str, default='ISO-8859-1', help="Data encoding type")
     parser.add_argument("--random_state", type=int, default=42, help="Random seed for train-val division")
     parser.add_argument("--model_arch", type=str, default='Hierarchical_Emotion_Emotion', choices=['Emotion_Only', 'Pretrained_Appraisal_post_Emotion', 'Hierarchical_Appraisal_Emotion', 'Text_And_Appraisal_Input', 'Hierarchical_Emotion_Emotion'], help="Type of training to perform")
@@ -66,7 +67,7 @@ def parse_args():
     parser.add_argument("--emotion_or_appraisal", type=str, default='both',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
     parser.add_argument("--train_val_split", type=float, default=0.1, help="val/train split ratio")
     parser.add_argument("--mode", type=str, default='both',choices=['both', 'train_only', 'test_only'], help='Are you training, testing, or both?')
-    parser.add_argument("--expert_mode", type=str, default='mixed',choices=['double', 'mixed', 'probe'], help='what model arch are you using?')
+    parser.add_argument("--expert_mode", type=str, default='sptoken',choices=['double', 'mixed', 'probe','sptoken'], help='what model arch are you using?')
     # Paths
     parser.add_argument("--train_data_path", type=str, default='data/enVent_new_Data_train.csv', help="Path to the training data")
     parser.add_argument("--val_data_path", type=str, default='data/enVent_new_Data_val.csv', help="Path to the test data")
