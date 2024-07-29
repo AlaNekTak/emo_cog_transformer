@@ -338,18 +338,18 @@ class GEA_Data_Module(pl.LightningDataModule):
         self.use_input_embeddings= self.config.use_input_embeddings 
         
     def setup(self, stage = None):
-        if not self.config.expert_mode == 'sptoken':
-            if stage in (None, "fit"):
-                self.train_dataset = GEA_Dataset(self.config, self.train_path, self.emotion_or_appraisal, tokenizer= self.tokenizer, max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
-                self.val_dataset = GEA_Dataset(self.config, self.val_path, self.emotion_or_appraisal,tokenizer= self.tokenizer,  max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
-            if stage == 'predict':
-                self.test_dataset = GEA_Dataset(self.config,self.test_path, self.emotion_or_appraisal,tokenizer= self.tokenizer,  max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
-        else:
+        if self.config.emotion_or_appraisal == 'both' and self.config.expert_mode == 'sptoken':
             if stage in (None, "fit"):
                 self.train_dataset = SPToken_Dataset(self.config, self.train_path, self.emotion_or_appraisal, tokenizer= self.tokenizer, max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
                 self.val_dataset = SPToken_Dataset(self.config, self.val_path, self.emotion_or_appraisal,tokenizer= self.tokenizer,  max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
             if stage == 'predict':
                 self.test_dataset = SPToken_Dataset(self.config,self.test_path, self.emotion_or_appraisal,tokenizer= self.tokenizer,  max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
+        else:
+            if stage in (None, "fit"):
+                self.train_dataset = GEA_Dataset(self.config, self.train_path, self.emotion_or_appraisal, tokenizer= self.tokenizer, max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
+                self.val_dataset = GEA_Dataset(self.config, self.val_path, self.emotion_or_appraisal,tokenizer= self.tokenizer,  max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
+            if stage == 'predict':
+                self.test_dataset = GEA_Dataset(self.config,self.test_path, self.emotion_or_appraisal,tokenizer= self.tokenizer,  max_token_len=self.max_token_length, use_embeddings=self.use_input_embeddings)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size = self.train_batch_size, num_workers=4, shuffle=True)

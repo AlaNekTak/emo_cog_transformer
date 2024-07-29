@@ -37,7 +37,8 @@ class GEA_Emotion_Classifier(pl.LightningModule):
             output = self.pretrained_model(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
         else:
             output = self.pretrained_model(input_ids=input_ids, attention_mask=attention_mask)
-        pooled_output = torch.mean(output.last_hidden_state, 1)
+        # pooled_output = torch.mean(output.last_hidden_state, 1)
+        pooled_output = output.last_hidden_state[:, 0, :]
         pooled_output = self.dropout(pooled_output)
         pooled_output = self.hidden(pooled_output)
         pooled_output = F.relu(pooled_output)
