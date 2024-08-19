@@ -368,7 +368,11 @@ def test(model_path ,config, logger):
         predict_results = trainer.predict(model, datamodule=dm)
         emotion_logits, emotion_labels, appraisal_labels, mean_last_hidden, attention = [], [], [], [], []
 
+        # Reverse mappings for emotions
+        reverse_emo_dict = {v: k for k, v in config.emo_dict.items()}
+
         try:
+
             # Extract logits and labels from the results
             for idx, batch_result in enumerate(predict_results):
                 emotion_logits.append(batch_result["emotion_logits"])
@@ -377,13 +381,13 @@ def test(model_path ,config, logger):
 
                 # Focus on [CLS] token attentions to and from last 7 tokens
                 current_attention = batch_result["attention"]
-                cls_to_last7 = current_attention[:, :, 0, -7:]  # Shape: [num_heads, 1, 7]
-                last7_to_cls = current_attention[:, :, -7:, 0]  # Shape: [num_heads, 7, 1]
+                cls_to_appraisals = current_attention[:, :, 0, -config.n_attributes:]  # Shape: [num_heads, 1, 7]
+                appraisals_to_cls = current_attention[:, :, -config.n_attributes:, 0]  # Shape: [num_heads, 7, 1]
                     
                 # Average over heads
-                cls_to_last7_avg = cls_to_last7.mean(axis=0)
-                last7_to_cls_avg = last7_to_cls.mean(axis=0)
-                attention.append((cls_to_last7_avg, last7_to_cls_avg))
+                cls_to_appraisals_avg = cls_to_appraisals.mean(axis=0)
+                appraisals_to_cls_avg = appraisals_to_cls.mean(axis=0)
+                attention.append((cls_to_appraisals_avg, appraisals_to_cls_avg))
 
             logger.info(f"Collected {len(emotion_logits)} emotion logit batches from predict.")
             logger.info(f"emotion logit shape {emotion_logits[0].shape} ")
@@ -403,10 +407,34 @@ def test(model_path ,config, logger):
             average_attention_by_label = {}
             for label, att_list in attention_by_label.items():
                 # Average over all batches corresponding to each label
-                cls_to_last7_avg = np.mean([att[0] for att in att_list], axis=0)
-                last7_to_cls_avg = np.mean([att[1] for att in att_list], axis=0)
-                average_attention_by_label[label] = (cls_to_last7_avg, last7_to_cls_avg)
+                cls_to_appraisals_avg = np.mean([att[0] for att in att_list], axis=0)
+                appraisals_to_cls_avg = np.mean([att[1] for att in att_list], axis=0)
+                average_attention_by_label[label] = (cls_to_appraisals_avg, appraisals_to_cls_avg)
                 
+            # Calculate mean attention and organize it into a DataFrame for CSV output
+            # Prepare data for CSV output with annotated emotion labels
+            data_for_csv = {
+                'emotion_label': [reverse_emo_dict[label] for label in average_attention_by_label],  # Annotate with emotion names
+                'cls_to_appraisals_avg': [att[0].tolist() for att in average_attention_by_label.values()],
+                'appraisals_to_cls_avg': [att[1].tolist() for att in average_attention_by_label.values()]
+            }
+
+
+            # Validate attention shapes
+            if attention:
+                sample_attention = attention[0]
+                logger.info(f"Sample cls_to_appraisals attention shape: {sample_attention[0].shape}")
+                logger.info(f"Sample appraisals_to_cls attention shape: {sample_attention[1].shape}")
+
+
+            # Create a DataFrame
+            df = pd.DataFrame(data_for_csv)
+            
+            # Save the DataFrame to CSV
+            csv_path = 'output/cls_to_appraisal_attention_data.csv'
+            df.to_csv(csv_path, index=False)
+            logger.info(f"Attention data saved to CSV at: {csv_path}")
+
         except RuntimeError as e:
             logger.error("Error during tensor concatenation: " + str(e))
             raise
@@ -437,7 +465,7 @@ def test(model_path ,config, logger):
             f1 = f1_score(emo_true_labels_np, emo_predictions_np, average='weighted')
             logger.info(f"F1 Score: {f1:.4f}")
 
-            reverse_emo_dict = {v: k for k, v in config.emo_dict.items()}
+            # reverse_emo_dict = {v: k for k, v in config.emo_dict.items()}
             emo_labels_np = np.array([reverse_emo_dict[idx] for idx in emo_predictions_np])
             
             # Append predictions to the original validation DataFrame
