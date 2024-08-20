@@ -541,3 +541,28 @@ class ProbeEmotionClassifier(pl.LightningModule):
 
     def on_train_epoch_end(self):
         print('emotion loss: ',self.trainer.callback_metrics.get(f'emotion_loss').cpu().numpy())
+
+
+
+class RobertaLightning(pl.LightningModule):
+    def __init__(self, config):
+        super().__init__()
+        self.model = AutoModel.from_pretrained(config.model_name, return_dict=True)
+        
+    def forward(self, input_ids=None, attention_mask=None, appraisal_labels=None, emotion_labels=None):
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, output_attentions=True)
+        mean_last_hidden = outputs.last_hidden_state[:, 0, :]
+        return mean_last_hidden, outputs.attentions[-1]
+
+    def predict_step(self, batch, batch_idx):
+        mean_last_hidden, attention = self(**batch)
+        return {
+                "emotion_logits":batch["emotion_labels"], # just to avoid errors
+                "emotion_labels": batch["emotion_labels"], 
+                "appraisal_labels": batch["appraisal_labels"],
+                "mean_last_hidden": mean_last_hidden,
+                "attention": attention              
+                }
+
+    def configure_optimizers(self):
+        pass
