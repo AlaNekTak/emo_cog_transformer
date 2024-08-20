@@ -479,8 +479,8 @@ def test(model_path ,config, logger):
         elif config.expert_mode == 'mixed':
             model = MixExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
         elif config.expert_mode == 'probe' or config.expert_mode == 'sptoken':
-            model = ProbeEmotionClassifier.load_from_checkpoint(model_path, config = config).to(config.device)
-
+            # model = ProbeEmotionClassifier.load_from_checkpoint(model_path, config = config).to(config.device)
+            model = AutoModel.from_pretrained(config.model_name).to(config.device)
     else:
         model = GEA_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
     # checkpoint = torch.load(model_path) # map_location=torch.device(device)
