@@ -12,7 +12,8 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 import optuna
 from Config import  NoOpCallback
 from Data import GEA_Data_Module, GEA_Dataset
-from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier, DoubleExp_Emotion_Classifier, ProbeEmotionClassifier
+from Model import GEA_Emotion_Classifier, MixExp_Emotion_Classifier,\
+                    DoubleExp_Emotion_Classifier, ProbeEmotionClassifier , RobertaLightning
 from ModelOptimizer import ModelOptimizer
 from collections import defaultdict
 
@@ -479,8 +480,8 @@ def test(model_path ,config, logger):
         elif config.expert_mode == 'mixed':
             model = MixExp_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
         elif config.expert_mode == 'probe' or config.expert_mode == 'sptoken':
-            # model = ProbeEmotionClassifier.load_from_checkpoint(model_path, config = config).to(config.device)
-            model = AutoModel.from_pretrained(config.model_name).to(config.device)
+            model = ProbeEmotionClassifier.load_from_checkpoint(model_path, config = config).to(config.device)
+            # model = RobertaLightning(config = config).to(config.device)
     else:
         model = GEA_Emotion_Classifier.load_from_checkpoint(model_path, config = config).to(config.device)
     # checkpoint = torch.load(model_path) # map_location=torch.device(device)
