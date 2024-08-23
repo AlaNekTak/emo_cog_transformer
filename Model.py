@@ -349,7 +349,7 @@ class DoubleExp_Emotion_Classifier(pl.LightningModule):
             # Apply dynamic scaling
             scaled_emotion_loss = self.emotion_loss_scaler.update_and_scale_loss(emotion_loss)
             scaled_appraisal_loss = self.appraisal_loss_scaler.update_and_scale_loss(appraisal_loss)
-            total_loss = scaled_emotion_loss + scaled_appraisal_loss
+            total_loss = self.config.emo_to_app_loss_ration * scaled_emotion_loss + scaled_appraisal_loss
             loss_dict['emotion'] = scaled_emotion_loss.item()
             loss_dict['appraisals'] = scaled_appraisal_loss.item()
 

@@ -25,6 +25,7 @@ class Config:
         self.expert_mode = args.expert_mode
         if self.expert_mode == 'sptoken':
             self.use_input_embeddings = True
+        self.emo_to_app_loss_ration = 5
         self.random_state = args.random_state
         self.train_batch_size = args.train_batch_size
         self.val_batch_size = args.val_batch_size

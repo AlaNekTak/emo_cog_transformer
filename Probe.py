@@ -33,6 +33,9 @@ class DataHandler:
             self.load_and_process_csv(train_csv_path, test_csv_path, numeric_columns)
         else:
             self.load_and_process_csv(train_csv_path, test_csv_path, categorical_columns)
+        
+        self.num_classes = {}  # Dictionary to store the number of classes per attribute
+
 
         # Normalize features
         self.scaler = StandardScaler()
@@ -67,6 +70,9 @@ class DataHandler:
             # Create loaders for each attribute
             train_loaders[attr] = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
             test_loaders[attr] = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+            # Determine the number of unique classes for each attribute
+            self.num_classes[attr] = int(torch.max(torch.from_numpy(self.train_labels[:, i])).item() + 1)
 
         return train_loaders, test_loaders
 
@@ -160,7 +166,7 @@ class LogisticModel:
         for i, attr in enumerate(self.attributes):
             # Using a logistic regression model with cross-validation
             # model = LogisticRegressionCV(cv=5, random_state=0, max_iter=10000, multi_class='multinomial', solver='lbfgs')
-            model = LogisticRegressionCV(cv=5, random_state=0, max_iter=10000, multi_class='multinomial', solver='saga', penalty='l2', Cs=[0.1, 1, 10])
+            model = LogisticRegressionCV(cv=5, random_state=0, max_iter=20000, multi_class='multinomial', solver='saga', penalty='l2', Cs=[0.1, 1, 10])
            
             model.fit(train_features, train_labels[:, i])
             self.models.append(model)
@@ -229,12 +235,22 @@ class MultiMLPModel:
 
 
 class SimpleMLP(nn.Module):
-    def __init__(self, input_size):
+    def __init__(self, input_size, hidden_size=100):
         super(SimpleMLP, self).__init__()
-        self.fc = nn.Linear(input_size, 1)  # Output size is 1 for single target regression
+        # self.fc = nn.Linear(input_size, 1)  # Output size is 1 for single target regression
+
+        self.layer1 = nn.Linear(input_size, 128)
+        self.layer2 = nn.Linear(128, 64)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.5)  # Add dropout for regularization
+        self.output_layer = nn.Linear(64, 1)
 
     def forward(self, x):
-        return self.fc(x)
+        x = self.relu(self.layer1(x))
+        x = self.dropout(x)
+        x = self.relu(self.layer2(x))
+        return self.output_layer(x)
+        # return self.fc(x)
 
 
 class MLPModel:
@@ -279,23 +295,100 @@ class MLPModel:
         return predictions, r2_scores
 
 
+
+class MLPClassifier:
+    def __init__(self, input_dim, output_dim, hidden_dim=100):
+        # self.model = nn.Sequential(
+        #     nn.Linear(input_dim, hidden_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim, output_dim)
+        # )
+        self.model = nn.Sequential(
+            nn.Linear(input_dim, output_dim),
+        )
+        self.criterion = nn.CrossEntropyLoss()
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        
+    def train(self, train_loader, epochs=10):
+        self.model.train()
+        for epoch in range(epochs):
+            for inputs, labels in train_loader:
+                inputs, labels = inputs.float(), labels.long()
+                self.optimizer.zero_grad()
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.optimizer.step()
+            print(f'Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}')
+
+    def evaluate(self, loader):
+        self.model.eval()
+        total, correct = 0, 0
+        with torch.no_grad():
+            for inputs, labels in loader:
+                inputs, labels = inputs.float(), labels.long()
+                outputs = self.model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        accuracy = 100 * correct / total
+        return accuracy
+    
+
+    
+def combine_tensors(file1, file2, output_file, dim=0):
+    """
+    Loads two tensor files, concatenates them along a specified dimension, and saves the result.
+
+    Args:
+    file1 (str): Path to the first tensor file.
+    file2 (str): Path to the second tensor file.
+    output_file (str): Path where the combined tensor will be saved.
+    dim (int): Dimension along which to concatenate the tensors.
+
+    Returns:
+    None
+    """
+    # Load the tensors from the specified files
+    tensor1 = torch.load(file1)
+    tensor2 = torch.load(file2)
+    
+    # Concatenate the tensors along the specified dimension
+    combined_tensor = torch.cat((tensor1, tensor2), dim=dim)
+    
+    # Save the combined tensor to the specified output file
+    torch.save(combined_tensor, output_file)
+    print(f"Combined tensor saved to {output_file}")
+
+
 def main():
+    # combine_tensors('output/roberta_train_1_hidden_states.pt', 'output/roberta_train_2_hidden_states.pt', 'output/roberta_train_hidden_states.pt', dim=0)
+    # combine_tensors('output/roberta_train_1_appraisal_labels.pt', 'output/roberta_train_2_appraisal_labels.pt', 'output/roberta_train_appraisal_labels.pt', dim=0)
+
+
     attributes = ['predict_event', 'pleasantness', 'attention',
             'other_responsblt', 'chance_control', 'social_norms']
 
     categorical_columns = ['gender', 'education', 'ethnicity', 'event_duration', 'emotion_duration']
-    categorical_columns = ['education']
+
     numeric_columns = ['intensity', 'age', 'extravert', 'critical', 
                 'dependable', 'anxious', 'open', 'quiet', 'sympathetic', 'disorganized', 'calm', 'conventional']
 
-    is_numerical = False
-    # categorical_columns = ['round_number']
+    is_numerical = True
+    # categorical_columns = ['event_duration']
     # numeric_columns = ['intensity']
 
-    data_handler = DataHandler('output/train_hidden_states.pt', 'output/train_appraisal_labels.pt', 
-                               'output/test_hidden_states.pt', 'output/test_appraisal_labels.pt',
-                               'data/enVent_new_Data_train.csv', 'data/enVent_new_Data_test.csv', 
-                               categorical_columns, numeric_columns, is_numerical)
+    # data_handler = DataHandler('output/all_emo_train_hidden_states.pt', 'output/train_appraisal_labels.pt', 
+    #                            'output/all_emo_test_hidden_states.pt', 'output/test_appraisal_labels.pt',
+    #                            'data/enVent_new_Data_train.csv', 'data/enVent_new_Data_test.csv', 
+    #                            categorical_columns, numeric_columns, is_numerical)
+    
+    data_handler = DataHandler('output/roberta_train_hidden_states.pt', 'output/roberta_train_appraisal_labels.pt', 
+                            'output/roberta_test_hidden_states.pt', 'output/roberta_test_appraisal_labels.pt',
+                            'data/enVent_new_Data_train.csv', 'data/enVent_new_Data_test.csv', 
+                            categorical_columns, numeric_columns, is_numerical)
+    
+
     data_handler.print_first_rows()
     train_loader, test_loader = data_handler.get_dataloaders()
 
@@ -316,6 +409,7 @@ def main():
         train_r2_scores = en_model.evaluate(data_handler.train_features, data_handler.train_labels, training=True)
         test_r2_scores = en_model.evaluate(data_handler.test_features, data_handler.test_labels, training=False)
 
+        print('ElasiticNet results: \n')
         # Printing R2 scores
         print("Training R² Scores:")
         for attribute, r2_score in train_r2_scores.items():
@@ -325,39 +419,69 @@ def main():
         for attribute, r2_score in test_r2_scores.items():
             print(f"{attribute}: {r2_score:.3f}")
 
+
+        print('\n\nMLP results: \n')
+
+        # # Multi MLP Model
+        # mlp_model = MultiMLPModel(input_size=data_handler.train_features.shape[1], output_size=data_handler.train_labels.shape[1])
+        # mlp_model.train(train_loader)
+        # mlp_predictions = mlp_model.evaluate(test_loader)
+        # r2_mlp = r2_score(data_handler.test_labels, mlp_predictions)
+        # print(f"MLP R2 Score: {r2_mlp}")
+        
+        device = 'cpu'
+        model = MLPModel(input_size=data_handler.train_features.shape[1], attributes=attributes+numeric_columns, learning_rate=0.01)
+
+        # Train the model
+        model.train(separate_train_loaders, device=device, epochs=20)
+
+        # Evaluate on training data
+        train_predictions, train_r2_scores = model.evaluate(separate_train_loaders, device=device)
+        print("Training R² Scores:")
+        for attr, score in train_r2_scores.items():
+            print(f'{attr}: {score:.4f}')
+
+        # Evaluate on testing data
+        test_predictions, test_r2_scores = model.evaluate(separate_test_loaders, device=device)
+        print("Testing R² Scores:")
+        for attr, score in test_r2_scores.items():
+            print(f'{attr}: {score:.4f}')
+   
+
     else:
         separate_train_loaders, separate_test_loaders = data_handler.get_dataloaders_for_each_label(batch_size=32, attributes=categorical_columns)
-        categorical_model = LogisticModel(categorical_columns)
-        categorical_model.train(data_handler.train_features, data_handler.train_labels)
-        print("Training done:\n")
-        train_accuracy, train_f1 = categorical_model.evaluate(data_handler.train_features, data_handler.train_labels, training=True)
-        test_accuracy, test_f1 = categorical_model.evaluate(data_handler.test_features, data_handler.test_labels, training=False)
+        # categorical_model = LogisticModel(categorical_columns)
+        # categorical_model.train(data_handler.train_features, data_handler.train_labels)
+        # print("Training done:\n")
+        # train_accuracy, train_f1 = categorical_model.evaluate(data_handler.train_features, data_handler.train_labels, training=True)
+        # test_accuracy, test_f1 = categorical_model.evaluate(data_handler.test_features, data_handler.test_labels, training=False)
 
-        # Printing accuracy and F1 scores
-        print("Training Accuracy and F1 Scores:")
-        for attribute in categorical_columns:
-            print(f"{attribute} - Accuracy: {train_accuracy[attribute]:.3f}, F1 Score: {train_f1[attribute]:.3f}")
+        # # Printing accuracy and F1 scores
+        # print("Training Accuracy and F1 Scores:")
+        # for attribute in categorical_columns:
+        #     print(f"{attribute} - Accuracy: {train_accuracy[attribute]:.3f}, F1 Score: {train_f1[attribute]:.3f}")
 
-        print("\nTesting Accuracy and F1 Scores:")
-        for attribute in categorical_columns:
-            print(f"{attribute} - Accuracy: {test_accuracy[attribute]:.3f}, F1 Score: {test_f1[attribute]:.3f}")
-
-
+        # print("\nTesting Accuracy and F1 Scores:")
+        # for attribute in categorical_columns:
+        #     print(f"{attribute} - Accuracy: {test_accuracy[attribute]:.3f}, F1 Score: {test_f1[attribute]:.3f}")
 
 
+        # Initialize and train MLP Classifier for each categorical attribute
+        input_dim = 768  # Matching the feature size from your setup
+        mlp_classifiers = {}
+        for attr in categorical_columns:
+            output_dim = data_handler.num_classes[attr]  # Dynamically set the output dimension
+            mlp_classifiers[attr] = MLPClassifier(input_dim, output_dim)
+            print(f"Training MLP for {attr} with {output_dim} classes.")
+            mlp_classifiers[attr].train(separate_train_loaders[attr], epochs=10)
+            train_accuracy = mlp_classifiers[attr].evaluate(separate_train_loaders[attr])
+            test_accuracy = mlp_classifiers[attr].evaluate(separate_test_loaders[attr])
+            print(f"{attr} - Train Accuracy: {train_accuracy:.3f}%, Test Accuracy: {test_accuracy:.3f}%")
 
-    # # Multi MLP Model
-    # mlp_model = MultiMLPModel(input_size=data_handler.train_features.shape[1], output_size=data_handler.train_labels.shape[1])
-    # mlp_model.train(train_loader)
-    # mlp_predictions = mlp_model.evaluate(test_loader)
-    # r2_mlp = r2_score(data_handler.test_labels, mlp_predictions)
-    # print(f"MLP R2 Score: {r2_mlp}")
 
-    # model = MLPModel(input_size=data_handler.train_features.shape[1], attributes=attributes, learning_rate=0.01)
-    # model.train(separate_train_loaders, device=device, epochs=20)
-    # predictions, r2_scores = model.evaluate(separate_test_loaders, device=device)
-    # for attr, score in r2_scores.items():
-    #     print(f'R2 score for {attr}: {score:.4f}')
+
+
+
 
             
 if __name__ == "__main__":
