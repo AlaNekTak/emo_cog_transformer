@@ -37,7 +37,13 @@ from ModelOptimizer import ModelOptimizer
 from TrainTest import test, train, split_train_val_test, quick_test, inspect_data
 import torch.multiprocessing as mp
 
+'''
+1- watch video
+1- high - low sptoken (attention)
+2- probe
+3- mixture - double (contradiction - adversial)
 
+'''
 # import IPython
 # import subprocess
 # import torch.distributed as dist
@@ -49,22 +55,22 @@ def parse_args():
     # Adding arguments
     parser.add_argument("--max_length", type=int, default=512, help="Maximum sequence length - 512")
     parser.add_argument("--hparam_trials", type=int, default=1, help="Number of hyperparameter trials")
-    parser.add_argument("--optimizer_lr", type=float, default=[1e-5], help="Learning rates given to optimizer")
-    parser.add_argument("--optimizer_batch_size", type=int, default=[32], help="Training batch sizes given to the optimizer")
+    parser.add_argument("--optimizer_lr", type=float, default=[1e-4], help="Learning rates given to optimizer")
+    parser.add_argument("--optimizer_batch_size", type=int, default=[16], help="Training batch sizes given to the optimizer")
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate")
-    parser.add_argument("--train_batch_size", type=int, default=32, help="Training batch size")
-    parser.add_argument("--val_batch_size", type=int, default=32, help="Validation batch size")
+    parser.add_argument("--train_batch_size", type=int, default=16, help="Training batch size")
+    parser.add_argument("--val_batch_size", type=int, default=16, help="Validation batch size")
     parser.add_argument("--dropout_rate", type=float, default=0.2, help="Dropout rate")
     parser.add_argument("--warmup", type=float, default=0.1, help="Warmup")
     parser.add_argument("--weight_decay", type=float, default=0.001, help="weight decay")
-    parser.add_argument("--epochs", type=int, default=20, help="Number of epochs for training")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs for training")
     parser.add_argument("--data_encoding", type=str, default='ISO-8859-1', help="Data encoding type")
     parser.add_argument("--random_state", type=int, default=42, help="Random seed for train-val division")
     parser.add_argument("--model_arch", type=str, default='Hierarchical_Emotion_Emotion', choices=['Emotion_Only', 'Pretrained_Appraisal_post_Emotion', 'Hierarchical_Appraisal_Emotion', 'Text_And_Appraisal_Input', 'Hierarchical_Emotion_Emotion'], help="Type of training to perform")
     parser.add_argument("--forced_appraisal_training", type=str, default='False', choices=['True', 'False'], help="Forced appraisal training mode")
     parser.add_argument("--embedding_usage_mode", type=str, default="last", choices=["average", "last", "first"], help="Embedding usage mode")
     parser.add_argument("--model_name", type=str, default='roberta-base', choices=['distilroberta-base','roberta-base', 'roberta-large', 'mistralai/Mistral-7B-v0.1', 'meta-llama/Llama-2-7b-hf'], help="Model name")
-    parser.add_argument("--emotion_or_appraisal", type=str, default='both',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
+    parser.add_argument("--emotion_or_appraisal", type=str, default='emotion',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
     parser.add_argument("--train_val_split", type=float, default=0.1, help="val/train split ratio")
     parser.add_argument("--mode", type=str, default='both',choices=['both', 'train_only', 'test_only'], help='Are you training, testing, or both?')
     parser.add_argument("--expert_mode", type=str, default='double',choices=['double', 'mixed', 'probe','sptoken'], help='what model arch are you using?')

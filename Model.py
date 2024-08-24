@@ -60,7 +60,7 @@ class GEA_Emotion_Classifier(pl.LightningModule):
     
     def training_step(self, batch, batch_index):
         loss, outputs = self(**batch)
-        self.log("train loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
         # writer.add_scalar("Loss/train", loss)
         return {"loss":loss, "predictions":outputs, "labels": batch["labels"]}
 

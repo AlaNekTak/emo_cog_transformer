@@ -19,7 +19,7 @@ class ModelOptimizer:
         self.epochs = config.epochs
         self.checkpoint_callback = ModelCheckpoint(monitor="val_loss", #validation loss _epoch
                                             filename='model-epoch-{epoch:02d}-val_loss-{val_loss:.2f}',
-                                            save_top_k=7,  # Save only the best model based on val_loss
+                                            save_top_k=self.config.save_top_k_models,  # Save only the best model based on val_loss
                                             mode='min',# Save the model with the minimum val_loss
                                             auto_insert_metric_name=False
                                             ) 
