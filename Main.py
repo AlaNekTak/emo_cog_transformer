@@ -70,14 +70,14 @@ def parse_args():
     parser.add_argument("--forced_appraisal_training", type=str, default='False', choices=['True', 'False'], help="Forced appraisal training mode")
     parser.add_argument("--embedding_usage_mode", type=str, default="last", choices=["average", "last", "first"], help="Embedding usage mode")
     parser.add_argument("--model_name", type=str, default='roberta-base', choices=['distilroberta-base','roberta-base', 'roberta-large', 'mistralai/Mistral-7B-v0.1', 'meta-llama/Llama-2-7b-hf'], help="Model name")
-    parser.add_argument("--emotion_or_appraisal", type=str, default='emotion',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
+    parser.add_argument("--emotion_or_appraisal", type=str, default='both',choices=['emotion', 'appraislal', 'both'], help='Is it emotion classification or appraisal prediction?')
     parser.add_argument("--train_val_split", type=float, default=0.1, help="val/train split ratio")
     parser.add_argument("--mode", type=str, default='both',choices=['both', 'train_only', 'test_only'], help='Are you training, testing, or both?')
-    parser.add_argument("--expert_mode", type=str, default='double',choices=['double', 'mixed', 'probe','sptoken'], help='what model arch are you using?')
+    parser.add_argument("--expert_mode", type=str, default='probe',choices=['double', 'mixed', 'probe','sptoken'], help='what model arch are you using?')
     # Paths
     parser.add_argument("--train_data_path", type=str, default='data/enVent_new_Data_train.csv', help="Path to the training data")
     parser.add_argument("--val_data_path", type=str, default='data/enVent_new_Data_val.csv', help="Path to the test data")
-    parser.add_argument("--test_data_path", type=str, default='data/enVent_new_Data_test.csv', help="Path to the test data")
+    parser.add_argument("--test_data_path", type=str, default='data/enVent_new_Data_train-2.csv', help="Path to the test data")
     parser.add_argument("--valid_result_path", type=str, default='output/validation_results_class.csv', help="Path for validation results (classification)")
     parser.add_argument("--valid_reg_result_path", type=str, default='output/validation_results_regress.csv', help="Path for validation results (regression)")
     parser.add_argument("--log_path", type=str, default='lightning_logs', help="Path to folder containing the training log")
@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
     elif config.mode == 'both':
         best_model_path = train(config, logger)
-        # best_model_path = "/home1/nekouvag/local_files/lightning_logs/2024_05_15__09_28_26/checkpoints/model-epoch-00-val_loss-11.64.ckpt"
+        # best_model_path = config.checkpoint_dir
         test(best_model_path,config, logger)
     else:
         logger.info('Error selecting the training mode! select between train, test, or both!')

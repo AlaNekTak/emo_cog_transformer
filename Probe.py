@@ -362,8 +362,8 @@ def combine_tensors(file1, file2, output_file, dim=0):
 
 
 def main():
-    # combine_tensors('output/roberta_train_1_hidden_states.pt', 'output/roberta_train_2_hidden_states.pt', 'output/roberta_train_hidden_states.pt', dim=0)
-    # combine_tensors('output/roberta_train_1_appraisal_labels.pt', 'output/roberta_train_2_appraisal_labels.pt', 'output/roberta_train_appraisal_labels.pt', dim=0)
+    # combine_tensors('output/train-1-appraisal_labels.pt', 'output/train-2-appraisal_labels.pt', 'output/all_emotions_train_appraisal_labels.pt', dim=0)
+    # combine_tensors('output/train-1-hidden_states.pt', 'output/train-2-hidden_states.pt', 'output/all_emotions_train_hidden_states.pt', dim=0)
 
 
     attributes = ['predict_event', 'pleasantness', 'attention',
@@ -378,8 +378,8 @@ def main():
     # categorical_columns = ['event_duration']
     # numeric_columns = ['intensity']
 
-    # data_handler = DataHandler('output/all_emo_train_hidden_states.pt', 'output/train_appraisal_labels.pt', 
-    #                            'output/all_emo_test_hidden_states.pt', 'output/test_appraisal_labels.pt',
+    # data_handler = DataHandler('output/all_emotions_train_hidden_states.pt', 'output/all_emotions_train_appraisal_labels.pt', 
+    #                            'output/all_emotions_test_hidden_states.pt', 'output/all_emotions_test_appraisal_labels.pt',
     #                            'data/enVent_new_Data_train.csv', 'data/enVent_new_Data_test.csv', 
     #                            categorical_columns, numeric_columns, is_numerical)
     

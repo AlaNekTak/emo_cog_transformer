@@ -18,7 +18,7 @@ class Config:
         # self.checkpoint_dir = 'checkpoint_emotion.pth.tar'
         # self.checkpoint_dir = '/home1/nekouvag/local_files/lightning_logs/mixExpert2/checkpoints/model-epoch-16-val_loss-15.62.ckpt'
         # probe case:
-        self.checkpoint_dir = '/home1/nekouvag/projects/emo_cog/lightning_logs/2024_06_30__13_02_59/checkpoints/model-epoch-00-val_loss-2.65.ckpt'
+        self.checkpoint_dir = '/home1/nekouvag/projects/emo_cog/lightning_logs/2024_08_24__09_16_27/checkpoints/model-epoch-03-val_loss-1.25.ckpt'
         self.inspect_data = False
         self.quick_test = False
         self.mode = args.mode
