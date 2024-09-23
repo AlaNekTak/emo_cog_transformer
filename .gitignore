@@ -1,4 +1,5 @@
 lightning_logs/
 __pycache__/
 myenv/
+.ipynb_checkpoints/
 # Ignoring logs and env 
