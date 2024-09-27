@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaForCausalLM, LlamaTokenizer
 from sklearn.linear_model import ElasticNet, LogisticRegression
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
 from sklearn.model_selection import train_test_split
@@ -10,6 +10,9 @@ import logging
 import os
 from datetime import datetime
 from tqdm import tqdm
+import subprocess
+import sentencepiece 
+from huggingface_hub import login
 
 # Define the dataset class for handling text data
 class TextDataset(Dataset):
@@ -42,8 +45,46 @@ class Log:
                             ])
         return logging.getLogger()
 
+def log_system_info(logger):
+    """
+    Logs system memory and GPU details.
+    """
+    def run_command(command):
+        """
+        Runs a shell command and returns its output.
+        
+        Args:
+        - command (list): Command and arguments to execute.
+        
+        Returns:
+        - str: Output of the command.
+        """
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            return result.stdout
+        else:
+            return result.stderr
+    memory_info = run_command(['free', '-h'])
+    gpu_info = run_command(['nvidia-smi'])
 
-def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length=512, mode="last_token", debug=False):
+    logger.info("Memory Info:\n" + memory_info)
+    logger.info("GPU Info:\n" + gpu_info)
+
+def hf_login(logger):
+    try:
+        # Retrieve the token from an environment variable
+        token = os.getenv("HUGGINGFACE_TOKEN")
+        if token is None:
+            logger.error("Hugging Face token not set in environment variables.")
+            return
+        
+        # Attempt to log in with the Hugging Face token
+        login(token=token)
+        logger.info("Logged in successfully to Hugging Face Hub.")
+    except Exception as e:
+        logger.error(f"Login failed: {str(e)}")
+
+def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length, extract_mode="last_token", debug=False):
     """
     Extracts the hidden states of the last non-padded token for each input text batch.
 
@@ -53,7 +94,7 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length=512,
     - model: Pretrained model from the transformers library.
     - max_length: Maximum length of the tokenized input (default is 512).
     - logger: Logger object for logging information.
-    - mode: "last_token" to get the last non-padded token's hidden state, "mean" for the mean of all non-padded tokens.
+    - extract_mode: "last_token" to get the last non-padded token's hidden state, "mean" for the mean of all non-padded tokens.
     - debug: If True, prints detailed information for debugging purposes.
 
     Returns:
@@ -83,7 +124,7 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length=512,
     # Indices of the last non-padded tokens
     last_token_indices = sequence_lengths - 1  # Subtract 1 for zero-based indexing
 
-    if mode == "last_token":
+    if extract_mode == "last_token":
         last_token_states = []
         for i in range(hidden_states.size(0)):
             index = last_token_indices[i].item()
@@ -105,7 +146,7 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length=512,
         # Convert list to tensor and numpy array
         result_states = torch.stack(last_token_states).detach().cpu().numpy()
     
-    elif mode == "mean":
+    elif extract_mode == "mean":
         mean_states = []
         for i in range(hidden_states.size(0)):
             valid_tokens = hidden_states[i, :sequence_lengths[i], :]
@@ -118,16 +159,15 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length=512,
     # logger.info(f"Resultant state shape for mode '{mode}': {result_states.shape}")  # Shape: [batch_size, hidden_size]
     return result_states
 
-
 # Process batches of text to get hidden states
-def process_batches(dataloader, tokenizer, model, logger):
+def process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode = 'last_token'):
     total_batches = len(dataloader)
     all_hidden_states = []
     for i, batch_texts in enumerate(tqdm(dataloader, desc="Processing batches"), 1):
         if i % 20 == 0 or i == total_batches:
             logger.info(f"Completed {i}/{total_batches} batches")
         debug = True if i<2 else False    
-        hidden_states = extract_hidden_states(batch_texts, tokenizer, model, logger=logger,  mode="mean", debug=debug)
+        hidden_states = extract_hidden_states(batch_texts, tokenizer, model,  logger=logger, max_length=max_length,  extract_mode=extract_mode, debug=debug)
         # hidden_states is already a NumPy array
         all_hidden_states.append(hidden_states)  # Keep as NumPy arrays for now
 
@@ -222,7 +262,7 @@ def probe(appriasals, emotion, train_data, all_hidden_states, logger):
     except Exception as e:
         logger.error(f"Error while probing emotion category '{emotion}': {e}")
 
-def inspect_examples(batch_texts, tokenizer, model, max_length=512, num_examples=2):
+def inspect_examples(batch_texts, tokenizer, model, max_length, num_examples=2):
     """
     Inspects tokens, embeddings, attention masks, padding, and masked attention
     for the first few examples in the provided batch_texts.
@@ -286,11 +326,39 @@ def inspect_examples(batch_texts, tokenizer, model, max_length=512, num_examples
 
         logger.info("=" * 50)
 
+def find_token_length_distribution(data, tokenizer):
+    """
+    Calculates the distribution of token lengths in the dataset, including quartiles.
+
+    Args:
+    - data: Iterable of text strings.
+    - tokenizer: Tokenizer object from the transformers library.
+
+    Returns:
+    - Dictionary containing the minimum, 25th percentile, median, 75th percentile, and maximum token lengths.
+    """
+    token_lengths = []
+    for text in data:
+        tokens = tokenizer.tokenize(text)
+        token_lengths.append(len(tokens))
+    
+    token_lengths = np.array(token_lengths)
+    quartiles = np.percentile(token_lengths, [25, 50, 75])
+    min_length = np.min(token_lengths)
+    max_length = np.max(token_lengths)
+
+    return {
+        "min_length": min_length,
+        "25th_percentile": quartiles[0],
+        "median": quartiles[1],
+        "75th_percentile": quartiles[2],
+        "max_length": max_length
+    }
 
 if __name__ == '__main__':
     log = Log()
     logger = log.logger
-
+    log_system_info(logger)
     data_path = 'data/enVent_gen_Data.csv'
     data_encoding = 'ISO-8859-1'
     train_data = pd.read_csv(data_path, encoding=data_encoding)
@@ -306,28 +374,56 @@ if __name__ == '__main__':
     dataset = TextDataset(train_data['input_text'].tolist())
     dataloader = DataLoader(dataset, batch_size=128, shuffle=True)
 
-    model = AutoModelForCausalLM.from_pretrained("gpt2", device_map="auto")
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    tokenizer.pad_token = tokenizer.eos_token
 
-    # # Add padding token if necessary
-    # tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-    # model.resize_token_embeddings(len(tokenizer))
+    model_choice = 'llama2'  # Change to 'gpt2' or 'llama2'
+
+    # Configuration for models
+    if model_choice == 'gpt2':
+        model_name = 'gpt2'
+        tokenizer_class = AutoTokenizer
+        model_class = AutoModelForCausalLM
+        special_tokens = {'pad_token': '<|endoftext|>'}
+        max_length = 128
+
+    elif model_choice == 'llama2':
+        model_name = 'meta-llama/Llama-2-7b-hf'  # Replace with the desired LLaMA-2 model
+        tokenizer_class = LlamaTokenizer
+        model_class = LlamaForCausalLM
+        special_tokens = {'pad_token': '<pad>'}
+        max_length = 128  # Adjust if needed based on the model's max length
+    else:
+        raise ValueError("Invalid model choice. Please select 'gpt2' or 'llama2'.")
+    
+
+    # Load tokenizer and model
+    tokenizer = tokenizer_class.from_pretrained(model_name)
+    model = model_class.from_pretrained(model_name, device_map="auto")
+
+    # Add special tokens if necessary
+    tokenizer.add_special_tokens(special_tokens)
+    model.resize_token_embeddings(len(tokenizer))
+
+    # Set the padding token for the tokenizer
+    tokenizer.pad_token = special_tokens['pad_token']
 
     # # Inspect the first few examples
     # first_batch_texts = train_data['input_text'].tolist()[:5]  # Adjust as needed
     # inspect_examples(first_batch_texts, tokenizer, model, max_length=512, num_examples=2)
 
+    # # Calculate token length distribution
+    # token_length_distribution = find_token_length_distribution(train_data['hidden_emo_text'], tokenizer)
+    # logger.info(f"Token Length Distribution: {token_length_distribution}")
 
     # Log model details
     num_params = sum(p.numel() for p in model.parameters())
-    logger.info(f"Loaded model with {num_params} parameters.")
+    logger.info(f"Loaded model '{model_name}' with {num_params} parameters.")
     logger.info(f"Model configuration: {model.config}")
 
+    extract_mode = "last_token" # or 'mean'
     try:
         logger.info("Tokenizing texts")
         logger.info("Running model inference to extract hidden states")
-        all_hidden_states = process_batches(dataloader, tokenizer, model, logger)
+        all_hidden_states = process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode)
         logger.info('hidden states saved!')
     except Exception as e:
         logger.error(f"Extracting hidden states failed: {e}")
