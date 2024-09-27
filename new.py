@@ -3,8 +3,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from sklearn.linear_model import ElasticNet
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.linear_model import ElasticNet, LogisticRegression
+from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
 from sklearn.model_selection import train_test_split
 import logging
 import os
@@ -42,32 +42,8 @@ class Log:
                             ])
         return logging.getLogger()
 
-# Function to extract hidden states from the model
-# def extract_hidden_states(batch_texts, tokenizer, model, max_length=512):
 
-#     inputs = tokenizer(
-#         batch_texts,
-#         padding='max_length',
-#         truncation=True,
-#         max_length=max_length,
-#         return_tensors="pt"
-#     ).to(model.device)
-
-#     with torch.no_grad():
-#         outputs = model(**inputs, output_hidden_states=True)
-
-#     # Ensure outputs.hidden_states[-1] is a tensor before calling detach()
-#     if isinstance(outputs.hidden_states[-1], torch.Tensor):
-#         # Extract the last token of the last hidden state for each sequence
-#         last_token_states = outputs.hidden_states[-1][:, -1, :].detach().cpu().numpy()
-#     else:
-#         logger.error("Expected outputs.hidden_states[-1] to be a PyTorch tensor.")
-#         raise TypeError("outputs.hidden_states[-1] is not a PyTorch tensor.")
-
-#     return last_token_states
-
-
-def extract_hidden_states(batch_texts, tokenizer, model, max_length=512, logger=None, debug=False):
+def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length=512, mode="last_token", debug=False):
     """
     Extracts the hidden states of the last non-padded token for each input text batch.
 
@@ -77,6 +53,7 @@ def extract_hidden_states(batch_texts, tokenizer, model, max_length=512, logger=
     - model: Pretrained model from the transformers library.
     - max_length: Maximum length of the tokenized input (default is 512).
     - logger: Logger object for logging information.
+    - mode: "last_token" to get the last non-padded token's hidden state, "mean" for the mean of all non-padded tokens.
     - debug: If True, prints detailed information for debugging purposes.
 
     Returns:
@@ -106,31 +83,40 @@ def extract_hidden_states(batch_texts, tokenizer, model, max_length=512, logger=
     # Indices of the last non-padded tokens
     last_token_indices = sequence_lengths - 1  # Subtract 1 for zero-based indexing
 
-    # Initialize a list to collect the hidden states of the last non-padded tokens
-    last_token_states = []
+    if mode == "last_token":
+        last_token_states = []
+        for i in range(hidden_states.size(0)):
+            index = last_token_indices[i].item()
+            last_hidden_state = hidden_states[i, index, :]  # Shape: [hidden_size]
+            last_token_states.append(last_hidden_state)
+        
+            if debug and i<2:  # Print debug information for the first two examples
+                # Extract the hidden state for the last non-padded token in each sequence
+                input_ids = inputs['input_ids'][i]
+                tokens = tokenizer.convert_ids_to_tokens(input_ids)
+                logger.info(f"Example {i+1}:")
+                logger.info(f"Input text: {batch_texts[i]}")
+                logger.info(f"Tokens: {tokens}")
+                logger.info(f"Attention mask: {attention_mask[i].cpu().numpy()}")
+                logger.info(f"Sequence length (excluding padding): {sequence_lengths[i].item()}")
+                logger.info(f"Last token index: {index}")
+                logger.info(f"Last token: {tokens[index]}")
+                logger.info("-" * 50)
+        # Convert list to tensor and numpy array
+        result_states = torch.stack(last_token_states).detach().cpu().numpy()
+    
+    elif mode == "mean":
+        mean_states = []
+        for i in range(hidden_states.size(0)):
+            valid_tokens = hidden_states[i, :sequence_lengths[i], :]
+            mean_state = valid_tokens.mean(dim=0)
+            mean_states.append(mean_state)
+        
+        # Convert list to tensor and numpy array
+        result_states = torch.stack(mean_states).detach().cpu().numpy()
 
-    # Extract the hidden state for the last non-padded token in each sequence
-    for i in range(hidden_states.size(0)):
-        index = last_token_indices[i].item()
-        last_hidden_state = hidden_states[i, index, :]  # Shape: [hidden_size]
-        last_token_states.append(last_hidden_state)
-
-        if debug and i < 2:  # Print debug information for the first two examples
-            input_ids = inputs['input_ids'][i]
-            tokens = tokenizer.convert_ids_to_tokens(input_ids)
-            logger.info(f"Example {i+1}:")
-            logger.info(f"Input text: {batch_texts[i]}")
-            logger.info(f"Tokens: {tokens}")
-            logger.info(f"Attention mask: {attention_mask[i].cpu().numpy()}")
-            logger.info(f"Sequence length (excluding padding): {sequence_lengths[i].item()}")
-            logger.info(f"Last token index: {index}")
-            logger.info(f"Last token: {tokens[index]}")
-            logger.info("-" * 50)
-
-    # Stack the list into a tensor and convert to numpy array
-    last_token_states = torch.stack(last_token_states).detach().cpu().numpy()  # Shape: [batch_size, hidden_size]
-
-    return last_token_states
+    # logger.info(f"Resultant state shape for mode '{mode}': {result_states.shape}")  # Shape: [batch_size, hidden_size]
+    return result_states
 
 
 # Process batches of text to get hidden states
@@ -140,7 +126,8 @@ def process_batches(dataloader, tokenizer, model, logger):
     for i, batch_texts in enumerate(tqdm(dataloader, desc="Processing batches"), 1):
         if i % 20 == 0 or i == total_batches:
             logger.info(f"Completed {i}/{total_batches} batches")
-        hidden_states = extract_hidden_states(batch_texts, tokenizer, model)
+        debug = True if i<2 else False    
+        hidden_states = extract_hidden_states(batch_texts, tokenizer, model, logger=logger,  mode="mean", debug=debug)
         # hidden_states is already a NumPy array
         all_hidden_states.append(hidden_states)  # Keep as NumPy arrays for now
 
@@ -158,13 +145,14 @@ def process_batches(dataloader, tokenizer, model, logger):
     return all_hidden_states_array
 
 # Probing function to analyze hidden states using regression
-def probe(attributes, train_data, all_hidden_states, logger):
+def probe(appriasals, emotion, train_data, all_hidden_states, logger):
     """
     Probes each attribute separately using regression on the hidden states.
 
     Args:
-    - attributes: List of attribute names to probe.
-    - train_data: The DataFrame containing the target attributes.
+    - appriasals: List of appriasals to probe.
+    - emotion: the emotion column to probe. (categorical)
+    - train_data: The DataFrame containing the target appriasals.
     - all_hidden_states: NumPy array or PyTorch tensor of hidden states.
     - logger: Logger object for logging information.
     """
@@ -175,12 +163,12 @@ def probe(attributes, train_data, all_hidden_states, logger):
     # Reshape hidden states to 2D array [samples, features]
     X = all_hidden_states.reshape(all_hidden_states.shape[0], -1)
 
-    for attribute in attributes:
+    for appriasal in appriasals:
         try:
-            logger.info(f"Probing attribute: {attribute}")
+            logger.info(f"Probing appriasal: {appriasal}")
 
             # Extract the target variable for the current attribute
-            Y = train_data[attribute].values
+            Y = train_data[appriasal].values
 
             logger.info(f"Feature matrix shape: {X.shape}")
             logger.info(f"Target vector shape: {Y.shape}")
@@ -204,12 +192,99 @@ def probe(attributes, train_data, all_hidden_states, logger):
             r2 = r2_score(Y_test, Y_pred)
 
             # Log the results
-            logger.info(f"Results for attribute '{attribute}':")
+            logger.info(f"Results for appriasal '{appriasal}':")
             logger.info(f"  Mean Squared Error (MSE): {mse:.4f}")
             logger.info(f"  R-squared (R^2): {r2:.4f}")
             logger.info("-" * 50)
         except Exception as e:
-            logger.error(f"Error while probing attribute '{attribute}': {e}")
+            logger.error(f"Error while probing appriasal '{appriasal}': {e}")
+
+    try:
+        logger.info(f"Probing emotion category: {emotion}")
+
+        Y = train_data[emotion].values
+        logger.info(f"Feature matrix shape: {X.shape}")
+        logger.info(f"Target vector shape: {Y.shape}")
+
+        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+        logger.info(f"Training with {X_train.shape[0]} samples, testing with {X_test.shape[0]} samples.")
+
+        classifier = LogisticRegression(max_iter=1000)
+        classifier.fit(X_train, Y_train)
+        Y_pred = classifier.predict(X_test)
+
+        accuracy = accuracy_score(Y_test, Y_pred)
+
+        logger.info(f"Results for emotion category '{emotion}':")
+        logger.info(f"Accuracy: {accuracy:.4f}")
+        logger.info("-" * 50)
+
+    except Exception as e:
+        logger.error(f"Error while probing emotion category '{emotion}': {e}")
+
+def inspect_examples(batch_texts, tokenizer, model, max_length=512, num_examples=2):
+    """
+    Inspects tokens, embeddings, attention masks, padding, and masked attention
+    for the first few examples in the provided batch_texts.
+
+    Args:
+    - batch_texts: List of text strings to process.
+    - tokenizer: Tokenizer object from the transformers library.
+    - model: Pretrained model from the transformers library.
+    - max_length: Maximum length of the tokenized input (default is 512).
+    - num_examples: Number of examples to inspect (default is 2).
+    """
+
+    # Tokenize the batch of texts
+    inputs = tokenizer(
+        batch_texts[:num_examples],
+        padding='max_length',
+        truncation=True,
+        max_length=max_length,
+        return_tensors="pt",
+        return_attention_mask=True
+    )
+
+    # Move inputs to the model's device
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+    # Run the model to get outputs and attentions
+    with torch.no_grad():
+        outputs = model(
+            **inputs,
+            output_hidden_states=True,
+            output_attentions=True,
+            return_dict=True
+        )
+
+    # Loop through each example
+    for i in range(num_examples):
+        logger.info(f"Example {i+1}:")
+        logger.info(f"Input text: {batch_texts[i]}")
+
+        input_ids = inputs['input_ids'][i]
+        attention_mask = inputs['attention_mask'][i]
+        tokens = tokenizer.convert_ids_to_tokens(input_ids)
+
+        # Extract attention from the last layer
+        last_layer_attention = outputs.attentions[-1][i]  # Shape: [num_heads, max_length, max_length]
+        # Extract the actual sequence length (non-padded part)
+        seq_len = attention_mask.sum().item()
+
+        # Logging tokens and attention mask
+        logger.info(f"Tokens: {tokens[:seq_len]}")
+        logger.info(f"Token IDs: {input_ids.cpu().numpy()[:seq_len]}")
+        logger.info(f"Attention Mask: {attention_mask.cpu().numpy()[:seq_len]}")
+        logger.info(f"Sequence Length (excluding padding): {seq_len}")
+
+        # Display attention weights for the first head, focusing only on the non-padded part
+        head_attention = last_layer_attention[0][:seq_len, :seq_len]  # Shape: [seq_len, seq_len]
+        logger.info("\nAttention weights for the last layer (first head):")
+        logger.info(f"Shape of head attention: {head_attention.shape}")
+        logger.info(f"Attention weights (first token attends to others): {head_attention[0]}")
+        logger.info("---")
+
+        logger.info("=" * 50)
 
 
 if __name__ == '__main__':
@@ -225,8 +300,8 @@ if __name__ == '__main__':
         "surprise": 11, "trust": 12
     }).astype(int)
 
-    attributes = ['predict_event', 'pleasantness', 'attention', 'other_responsblt', 'chance_control', 'social_norms']
-    train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x: f"{x} I feel")
+    appriasals = ['predict_event', 'pleasantness', 'attention', 'other_responsblt', 'chance_control', 'social_norms']
+    train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x: f"{x}. I felt")
 
     dataset = TextDataset(train_data['input_text'].tolist())
     dataloader = DataLoader(dataset, batch_size=128, shuffle=True)
@@ -234,6 +309,15 @@ if __name__ == '__main__':
     model = AutoModelForCausalLM.from_pretrained("gpt2", device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
     tokenizer.pad_token = tokenizer.eos_token
+
+    # # Add padding token if necessary
+    # tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+    # model.resize_token_embeddings(len(tokenizer))
+
+    # # Inspect the first few examples
+    # first_batch_texts = train_data['input_text'].tolist()[:5]  # Adjust as needed
+    # inspect_examples(first_batch_texts, tokenizer, model, max_length=512, num_examples=2)
+
 
     # Log model details
     num_params = sum(p.numel() for p in model.parameters())
@@ -251,7 +335,7 @@ if __name__ == '__main__':
     try:
         # Load the hidden states from file
         all_hidden_states = np.load('hidden_states.npy')
-        probe(attributes, train_data, all_hidden_states, logger)
+        probe(appriasals, 'emotion', train_data, all_hidden_states, logger)
         logger.info('probe done!')
     except Exception as e:
         logger.error(f"Probing failed: {e}")

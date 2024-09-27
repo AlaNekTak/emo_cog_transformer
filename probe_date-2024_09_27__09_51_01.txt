@@ -1,0 +1,105 @@
+27-Sep-24 09:51:03 - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+27-Sep-24 09:51:04 - INFO - Loaded model with 124439808 parameters.
+27-Sep-24 09:51:04 - INFO - Model configuration: GPT2Config {
+  "_name_or_path": "gpt2",
+  "activation_function": "gelu_new",
+  "architectures": [
+    "GPT2LMHeadModel"
+  ],
+  "attn_pdrop": 0.1,
+  "bos_token_id": 50256,
+  "embd_pdrop": 0.1,
+  "eos_token_id": 50256,
+  "initializer_range": 0.02,
+  "layer_norm_epsilon": 1e-05,
+  "model_type": "gpt2",
+  "n_ctx": 1024,
+  "n_embd": 768,
+  "n_head": 12,
+  "n_inner": null,
+  "n_layer": 12,
+  "n_positions": 1024,
+  "reorder_and_upcast_attn": false,
+  "resid_pdrop": 0.1,
+  "scale_attn_by_inverse_layer_idx": false,
+  "scale_attn_weights": true,
+  "summary_activation": null,
+  "summary_first_dropout": 0.1,
+  "summary_proj_to_labels": true,
+  "summary_type": "cls_index",
+  "summary_use_proj": true,
+  "task_specific_params": {
+    "text-generation": {
+      "do_sample": true,
+      "max_length": 50
+    }
+  },
+  "transformers_version": "4.40.1",
+  "use_cache": true,
+  "vocab_size": 50257
+}
+
+27-Sep-24 09:51:04 - INFO - Tokenizing texts
+27-Sep-24 09:51:04 - INFO - Running model inference to extract hidden states
+27-Sep-24 09:51:29 - INFO - Completed 20/52 batches
+27-Sep-24 09:51:56 - INFO - Completed 40/52 batches
+27-Sep-24 09:52:11 - INFO - Completed 52/52 batches
+27-Sep-24 09:52:12 - INFO - Total size of hidden states array: 19.34 MB
+27-Sep-24 09:52:12 - INFO - Saved all hidden states as a .npy file
+27-Sep-24 09:52:12 - INFO - hidden states saved!
+27-Sep-24 09:52:12 - INFO - Probing appriasal: predict_event
+27-Sep-24 09:52:12 - INFO - Feature matrix shape: (6600, 768)
+27-Sep-24 09:52:12 - INFO - Target vector shape: (6600,)
+27-Sep-24 09:52:12 - INFO - Training with 5280 samples, testing with 1320 samples.
+27-Sep-24 09:52:12 - INFO - Results for appriasal 'predict_event':
+27-Sep-24 09:52:12 - INFO -   Mean Squared Error (MSE): 2.1194
+27-Sep-24 09:52:12 - INFO -   R-squared (R^2): -0.0015
+27-Sep-24 09:52:12 - INFO - --------------------------------------------------
+27-Sep-24 09:52:12 - INFO - Probing appriasal: pleasantness
+27-Sep-24 09:52:12 - INFO - Feature matrix shape: (6600, 768)
+27-Sep-24 09:52:12 - INFO - Target vector shape: (6600,)
+27-Sep-24 09:52:12 - INFO - Training with 5280 samples, testing with 1320 samples.
+27-Sep-24 09:52:12 - INFO - Results for appriasal 'pleasantness':
+27-Sep-24 09:52:12 - INFO -   Mean Squared Error (MSE): 2.8300
+27-Sep-24 09:52:12 - INFO -   R-squared (R^2): -0.0012
+27-Sep-24 09:52:12 - INFO - --------------------------------------------------
+27-Sep-24 09:52:12 - INFO - Probing appriasal: attention
+27-Sep-24 09:52:12 - INFO - Feature matrix shape: (6600, 768)
+27-Sep-24 09:52:12 - INFO - Target vector shape: (6600,)
+27-Sep-24 09:52:12 - INFO - Training with 5280 samples, testing with 1320 samples.
+27-Sep-24 09:52:13 - INFO - Results for appriasal 'attention':
+27-Sep-24 09:52:13 - INFO -   Mean Squared Error (MSE): 1.7821
+27-Sep-24 09:52:13 - INFO -   R-squared (R^2): -0.0000
+27-Sep-24 09:52:13 - INFO - --------------------------------------------------
+27-Sep-24 09:52:13 - INFO - Probing appriasal: other_responsblt
+27-Sep-24 09:52:13 - INFO - Feature matrix shape: (6600, 768)
+27-Sep-24 09:52:13 - INFO - Target vector shape: (6600,)
+27-Sep-24 09:52:13 - INFO - Training with 5280 samples, testing with 1320 samples.
+27-Sep-24 09:52:13 - INFO - Results for appriasal 'other_responsblt':
+27-Sep-24 09:52:13 - INFO -   Mean Squared Error (MSE): 2.7642
+27-Sep-24 09:52:13 - INFO -   R-squared (R^2): -0.0000
+27-Sep-24 09:52:13 - INFO - --------------------------------------------------
+27-Sep-24 09:52:13 - INFO - Probing appriasal: chance_control
+27-Sep-24 09:52:13 - INFO - Feature matrix shape: (6600, 768)
+27-Sep-24 09:52:13 - INFO - Target vector shape: (6600,)
+27-Sep-24 09:52:13 - INFO - Training with 5280 samples, testing with 1320 samples.
+27-Sep-24 09:52:13 - INFO - Results for appriasal 'chance_control':
+27-Sep-24 09:52:13 - INFO -   Mean Squared Error (MSE): 2.0859
+27-Sep-24 09:52:13 - INFO -   R-squared (R^2): -0.0017
+27-Sep-24 09:52:13 - INFO - --------------------------------------------------
+27-Sep-24 09:52:13 - INFO - Probing appriasal: social_norms
+27-Sep-24 09:52:13 - INFO - Feature matrix shape: (6600, 768)
+27-Sep-24 09:52:13 - INFO - Target vector shape: (6600,)
+27-Sep-24 09:52:13 - INFO - Training with 5280 samples, testing with 1320 samples.
+27-Sep-24 09:52:13 - INFO - Results for appriasal 'social_norms':
+27-Sep-24 09:52:13 - INFO -   Mean Squared Error (MSE): 1.9348
+27-Sep-24 09:52:13 - INFO -   R-squared (R^2): -0.0065
+27-Sep-24 09:52:13 - INFO - --------------------------------------------------
+27-Sep-24 09:52:13 - INFO - Probing emotion category: emotion
+27-Sep-24 09:52:13 - INFO - Feature matrix shape: (6600, 768)
+27-Sep-24 09:52:13 - INFO - Target vector shape: (6600,)
+27-Sep-24 09:52:13 - INFO - Training with 5280 samples, testing with 1320 samples.
+27-Sep-24 09:52:19 - INFO - Results for emotion category 'emotion':
+27-Sep-24 09:52:19 - INFO - Accuracy: 0.0712
+27-Sep-24 09:52:19 - INFO - --------------------------------------------------
+27-Sep-24 09:52:19 - INFO - probe done!
