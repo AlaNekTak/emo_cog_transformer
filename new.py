@@ -13,6 +13,7 @@ from tqdm import tqdm
 import subprocess
 import sentencepiece 
 from huggingface_hub import login
+from dotenv import load_dotenv
 
 # Define the dataset class for handling text data
 class TextDataset(Dataset):
@@ -71,6 +72,7 @@ def log_system_info(logger):
     logger.info("GPU Info:\n" + gpu_info)
 
 def hf_login(logger):
+    load_dotenv()
     try:
         # Retrieve the token from an environment variable
         token = os.getenv("HUGGINGFACE_TOKEN")
@@ -359,6 +361,8 @@ if __name__ == '__main__':
     log = Log()
     logger = log.logger
     log_system_info(logger)
+    hf_login(logger)
+
     data_path = 'data/enVent_gen_Data.csv'
     data_encoding = 'ISO-8859-1'
     train_data = pd.read_csv(data_path, encoding=data_encoding)
@@ -370,7 +374,8 @@ if __name__ == '__main__':
 
     appriasals = ['predict_event', 'pleasantness', 'attention', 'other_responsblt', 'chance_control', 'social_norms']
     train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x: f"{x}. I felt")
-
+    train_data = train_data[:100]
+    
     dataset = TextDataset(train_data['input_text'].tolist())
     dataloader = DataLoader(dataset, batch_size=128, shuffle=True)
 
