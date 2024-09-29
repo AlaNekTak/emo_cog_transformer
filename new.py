@@ -374,10 +374,10 @@ if __name__ == '__main__':
 
     appriasals = ['predict_event', 'pleasantness', 'attention', 'other_responsblt', 'chance_control', 'social_norms']
     train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x: f"{x}. I felt")
-    train_data = train_data[:100]
-    
+
+
     dataset = TextDataset(train_data['input_text'].tolist())
-    dataloader = DataLoader(dataset, batch_size=128, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=32)
 
 
     model_choice = 'llama2'  # Change to 'gpt2' or 'llama2'
