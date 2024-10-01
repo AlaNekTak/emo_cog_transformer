@@ -1,0 +1,151 @@
+01-Oct-24 07:47:27 - INFO - Memory Info:
+              total        used        free      shared  buff/cache   available
+Mem:           187G        9.4G         45G        3.9G        132G        173G
+Swap:            0B          0B          0B
+
+01-Oct-24 07:47:27 - INFO - GPU Info:
+Tue Oct  1 07:47:27 2024       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.129.03             Driver Version: 535.129.03   CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  Tesla V100-PCIE-32GB           Off | 00000000:D8:00.0 Off |                    0 |
+| N/A   26C    P0              37W / 250W |      0MiB / 32768MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+
+01-Oct-24 07:47:27 - ERROR - Hugging Face token not set in environment variables.
+01-Oct-24 07:47:37 - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+01-Oct-24 07:47:44 - INFO - Example 1:
+01-Oct-24 07:47:44 - INFO - Input text: people get under my skin. Like for example if an entitled customer shows up at my work and  demands to speak to my manager for a simple issue that I can resolve. This happens on almost a daily occurrence and it really makes me ..... I felt
+01-Oct-24 07:47:45 - INFO - Tokens: ['people', 'Ġget', 'Ġunder', 'Ġmy', 'Ġskin', '.', 'ĠLike', 'Ġfor', 'Ġexample', 'Ġif', 'Ġan', 'Ġentitled', 'Ġcustomer', 'Ġshows', 'Ġup', 'Ġat', 'Ġmy', 'Ġwork', 'Ġand', 'Ġ', 'Ġdemands', 'Ġto', 'Ġspeak', 'Ġto', 'Ġmy', 'Ġmanager', 'Ġfor', 'Ġa', 'Ġsimple', 'Ġissue', 'Ġthat', 'ĠI', 'Ġcan', 'Ġresolve', '.', 'ĠThis', 'Ġhappens', 'Ġon', 'Ġalmost', 'Ġa', 'Ġdaily', 'Ġoccurrence', 'Ġand', 'Ġit', 'Ġreally', 'Ġmakes', 'Ġme', 'Ġ..', '...', 'ĠI', 'Ġfelt']
+01-Oct-24 07:47:45 - INFO - Token IDs: [15332   651   739   616  4168    13  4525   329  1672   611   281  9080
+  6491  2523   510   379   616   670   290   220  8665   284  2740   284
+   616  4706   329   257  2829  2071   326   314   460 10568    13   770
+  4325   319  2048   257  4445 19810   290   340  1107  1838   502 11485
+   986   314  2936]
+01-Oct-24 07:47:45 - INFO - Attention Mask: [1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+ 1 1 1 1 1 1 1 1 1 1 1 1 1 1]
+01-Oct-24 07:47:45 - INFO - Sequence Length (excluding padding): 51
+01-Oct-24 07:47:45 - INFO - 
+Attention weights for the last layer (first head):
+01-Oct-24 07:47:45 - INFO - Shape of head attention: torch.Size([51, 51])
+01-Oct-24 07:47:47 - INFO - Attention weights (first token attends to others): tensor([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+       device='cuda:0')
+01-Oct-24 07:47:47 - INFO - ---
+01-Oct-24 07:47:47 - INFO - ==================================================
+01-Oct-24 07:47:47 - INFO - Example 2:
+01-Oct-24 07:47:47 - INFO - Input text: I was driving on the highway and someone cut me off and brake checked me, almost causing a car accident. I felt
+01-Oct-24 07:47:47 - INFO - Tokens: ['I', 'Ġwas', 'Ġdriving', 'Ġon', 'Ġthe', 'Ġhighway', 'Ġand', 'Ġsomeone', 'Ġcut', 'Ġme', 'Ġoff', 'Ġand', 'Ġbrake', 'Ġchecked', 'Ġme', ',', 'Ġalmost', 'Ġcausing', 'Ġa', 'Ġcar', 'Ġaccident', '.', 'ĠI', 'Ġfelt']
+01-Oct-24 07:47:47 - INFO - Token IDs: [   40   373  5059   319   262 12763   290  2130  2005   502   572   290
+ 20439 10667   502    11  2048  6666   257  1097  5778    13   314  2936]
+01-Oct-24 07:47:47 - INFO - Attention Mask: [1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1]
+01-Oct-24 07:47:47 - INFO - Sequence Length (excluding padding): 24
+01-Oct-24 07:47:47 - INFO - 
+Attention weights for the last layer (first head):
+01-Oct-24 07:47:47 - INFO - Shape of head attention: torch.Size([24, 24])
+01-Oct-24 07:47:47 - INFO - Attention weights (first token attends to others): tensor([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0., 0.], device='cuda:0')
+01-Oct-24 07:47:47 - INFO - ---
+01-Oct-24 07:47:47 - INFO - ==================================================
+01-Oct-24 07:47:47 - INFO - Loaded model 'gpt2' with 124439808 parameters.
+01-Oct-24 07:47:47 - INFO - Model configuration: GPT2Config {
+  "_name_or_path": "gpt2",
+  "activation_function": "gelu_new",
+  "architectures": [
+    "GPT2LMHeadModel"
+  ],
+  "attn_pdrop": 0.1,
+  "bos_token_id": 50256,
+  "embd_pdrop": 0.1,
+  "eos_token_id": 50256,
+  "initializer_range": 0.02,
+  "layer_norm_epsilon": 1e-05,
+  "model_type": "gpt2",
+  "n_ctx": 1024,
+  "n_embd": 768,
+  "n_head": 12,
+  "n_inner": null,
+  "n_layer": 12,
+  "n_positions": 1024,
+  "reorder_and_upcast_attn": false,
+  "resid_pdrop": 0.1,
+  "scale_attn_by_inverse_layer_idx": false,
+  "scale_attn_weights": true,
+  "summary_activation": null,
+  "summary_first_dropout": 0.1,
+  "summary_proj_to_labels": true,
+  "summary_type": "cls_index",
+  "summary_use_proj": true,
+  "task_specific_params": {
+    "text-generation": {
+      "do_sample": true,
+      "max_length": 50
+    }
+  },
+  "transformers_version": "4.40.1",
+  "use_cache": true,
+  "vocab_size": 50257
+}
+
+01-Oct-24 07:47:47 - INFO - Probing emotion category
+01-Oct-24 07:47:47 - INFO - Feature matrix shape: (6600, 768)
+01-Oct-24 07:47:47 - INFO - Target vector shape: (6600,)
+01-Oct-24 07:49:26 - INFO - 5-Fold CV Accuracy for emotion category: 0.4821 ± 0.0072
+01-Oct-24 07:49:26 - INFO - Training Accuracy for emotion category: 0.6848
+01-Oct-24 07:49:26 - INFO - Probing appraisal: predict_event
+01-Oct-24 07:49:26 - INFO - Feature matrix shape: (6600, 768)
+01-Oct-24 07:49:26 - INFO - Target vector shape: (6600,)
+01-Oct-24 07:49:29 - INFO - 5-Fold CV MSE for 'predict_event': 2.0405 ± 0.0423
+01-Oct-24 07:49:29 - INFO - Training MSE for 'predict_event': 1.5243
+01-Oct-24 07:49:29 - INFO - 5-Fold CV R-squared for 'predict_event': 0.0585 ± 0.0194
+01-Oct-24 07:49:29 - INFO - Training R-squared for 'predict_event': 0.2975
+01-Oct-24 07:49:29 - INFO - Probing appraisal: pleasantness
+01-Oct-24 07:49:29 - INFO - Feature matrix shape: (6600, 768)
+01-Oct-24 07:49:29 - INFO - Target vector shape: (6600,)
+01-Oct-24 07:49:31 - INFO - 5-Fold CV MSE for 'pleasantness': 1.7052 ± 0.0539
+01-Oct-24 07:49:31 - INFO - Training MSE for 'pleasantness': 1.2682
+01-Oct-24 07:49:31 - INFO - 5-Fold CV R-squared for 'pleasantness': 0.4057 ± 0.0170
+01-Oct-24 07:49:31 - INFO - Training R-squared for 'pleasantness': 0.5581
+01-Oct-24 07:49:31 - INFO - Probing appraisal: attention
+01-Oct-24 07:49:31 - INFO - Feature matrix shape: (6600, 768)
+01-Oct-24 07:49:31 - INFO - Target vector shape: (6600,)
+01-Oct-24 07:49:33 - INFO - 5-Fold CV MSE for 'attention': 1.7442 ± 0.0779
+01-Oct-24 07:49:33 - INFO - Training MSE for 'attention': 1.3136
+01-Oct-24 07:49:33 - INFO - 5-Fold CV R-squared for 'attention': -0.0138 ± 0.0148
+01-Oct-24 07:49:33 - INFO - Training R-squared for 'attention': 0.2370
+01-Oct-24 07:49:33 - INFO - Probing appraisal: other_responsblt
+01-Oct-24 07:49:33 - INFO - Feature matrix shape: (6600, 768)
+01-Oct-24 07:49:33 - INFO - Target vector shape: (6600,)
+01-Oct-24 07:49:36 - INFO - 5-Fold CV MSE for 'other_responsblt': 2.2169 ± 0.0514
+01-Oct-24 07:49:36 - INFO - Training MSE for 'other_responsblt': 1.6677
+01-Oct-24 07:49:36 - INFO - 5-Fold CV R-squared for 'other_responsblt': 0.1916 ± 0.0224
+01-Oct-24 07:49:36 - INFO - Training R-squared for 'other_responsblt': 0.3922
+01-Oct-24 07:49:36 - INFO - Probing appraisal: chance_control
+01-Oct-24 07:49:36 - INFO - Feature matrix shape: (6600, 768)
+01-Oct-24 07:49:36 - INFO - Target vector shape: (6600,)
+01-Oct-24 07:49:38 - INFO - 5-Fold CV MSE for 'chance_control': 1.9328 ± 0.0959
+01-Oct-24 07:49:38 - INFO - Training MSE for 'chance_control': 1.4386
+01-Oct-24 07:49:38 - INFO - 5-Fold CV R-squared for 'chance_control': 0.0980 ± 0.0379
+01-Oct-24 07:49:38 - INFO - Training R-squared for 'chance_control': 0.3290
+01-Oct-24 07:49:38 - INFO - Probing appraisal: social_norms
+01-Oct-24 07:49:38 - INFO - Feature matrix shape: (6600, 768)
+01-Oct-24 07:49:38 - INFO - Target vector shape: (6600,)
+01-Oct-24 07:49:41 - INFO - 5-Fold CV MSE for 'social_norms': 1.3811 ± 0.0529
+01-Oct-24 07:49:41 - INFO - Training MSE for 'social_norms': 1.0367
+01-Oct-24 07:49:41 - INFO - 5-Fold CV R-squared for 'social_norms': 0.2110 ± 0.0391
+01-Oct-24 07:49:41 - INFO - Training R-squared for 'social_norms': 0.4098
+01-Oct-24 07:49:41 - INFO - probe done!
