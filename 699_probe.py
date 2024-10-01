@@ -381,7 +381,7 @@ def probe(all_hidden_states, labels, appraisals, logger):
             logger.info(f"Training MSE for '{appraisal_name}': {training_mse:.4f}")
             logger.info(f"5-Fold CV R-squared for '{appraisal_name}': {cv_r2.mean():.4f} ± {cv_r2.std():.4f}")
             logger.info(f"Training R-squared for '{appraisal_name}': {training_r2:.4f}")
-
+            logger.info("- -"*25)
         except Exception as e:
             logger.error(f"Error while probing appraisal '{appraisal_name}': {e}")
 
@@ -504,14 +504,14 @@ if __name__ == '__main__':
     logger.info(f"Loaded model '{model_name}' with {num_params} parameters.")
     logger.info(f"Model configuration: {model.config}")
 
-    # extract_mode = "mean" # or 'mean'
-    # try:
-    #     logger.info("Tokenizing texts")
-    #     logger.info("Running model inference to extract hidden states")
-    #     _, _ = process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode)
-    #     logger.info('hidden states saved!')
-    # except Exception as e:
-    #     logger.error(f"Extracting hidden states failed: {e}")
+    extract_mode = "mean" # or 'mean'
+    try:
+        logger.info("Tokenizing texts")
+        logger.info("Running model inference to extract hidden states")
+        _, _ = process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode)
+        logger.info('hidden states saved!')
+    except Exception as e:
+        logger.error(f"Extracting hidden states failed: {e}")
 
     try:
         # Load the hidden states from file
