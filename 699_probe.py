@@ -355,7 +355,7 @@ def probe(all_hidden_states, labels, appraisals, logger):
         classifier.fit(X, Y_emotion)  # Train on the entire dataset for full model training after CV
         training_accuracy = classifier.score(X, Y_emotion)
 
-        logger.info(f"5-Fold CV Accuracy for emotion category: {cv_accuracies.mean():.4f} ± {cv_accuracies.std():.4f}")
+        logger.info(f"5-Fold CV Accuracy for emotion category: {cv_accuracies.mean():.4f} Â± {cv_accuracies.std():.4f}")
         logger.info(f"Training Accuracy for emotion category: {training_accuracy:.4f}")
     except Exception as e:
         logger.error(f"Error while probing emotion category: {e}")
@@ -377,14 +377,13 @@ def probe(all_hidden_states, labels, appraisals, logger):
             training_mse = mean_squared_error(Y, training_predictions)
             training_r2 = r2_score(Y, training_predictions)
 
-            logger.info(f"5-Fold CV MSE for '{appraisal_name}': {-cv_mse.mean():.4f} ± {cv_mse.std():.4f}")
+            logger.info(f"5-Fold CV MSE for '{appraisal_name}': {-cv_mse.mean():.4f} Â± {cv_mse.std():.4f}")
             logger.info(f"Training MSE for '{appraisal_name}': {training_mse:.4f}")
-            logger.info(f"5-Fold CV R-squared for '{appraisal_name}': {cv_r2.mean():.4f} ± {cv_r2.std():.4f}")
+            logger.info(f"5-Fold CV R-squared for '{appraisal_name}': {cv_r2.mean():.4f} Â± {cv_r2.std():.4f}")
             logger.info(f"Training R-squared for '{appraisal_name}': {training_r2:.4f}")
             logger.info("- -"*25)
         except Exception as e:
             logger.error(f"Error while probing appraisal '{appraisal_name}': {e}")
-
 
 def probe_classification(hidden_states, labels, appraisals, logger):
     """
@@ -431,7 +430,7 @@ def probe_classification(hidden_states, labels, appraisals, logger):
         # Log the average accuracy across the k-folds
         avg_accuracy = np.mean(accuracies)
         std_dev = np.std(accuracies)
-        logger.info(f"Accuracy for {appraisal_name} (low, med, high classification): {avg_accuracy:.4f} ± {std_dev:.4f}")
+        logger.info(f"Accuracy for {appraisal_name} (low, med, high classification): {avg_accuracy:.4f} Â± {std_dev:.4f}")
         logger.info(classification_report(y_test, y_pred, target_names=['Low', 'Medium', 'High']))
 
 
@@ -460,7 +459,7 @@ if __name__ == '__main__':
     dataloader = DataLoader(dataset, batch_size=32)
 
 
-    model_choice = 'gpt2'  # Change to 'gpt2' or 'llama2'
+    model_choice = 'llama3'  # Change to 'gpt2' or 'llama2', meta-llama/Llama-3.2-1B,  meta-llama/Meta-Llama-3-8B
 
     # Configuration for models
     if model_choice == 'gpt2':
@@ -470,30 +469,40 @@ if __name__ == '__main__':
         special_tokens = {'pad_token': '<|endoftext|>'}
         max_length = 128
 
-    elif model_choice == 'llama2':
-        model_name = 'meta-llama/Llama-2-7b-hf'  # Replace with the desired LLaMA-2 model
+    elif model_choice == 'llama2': 
+        model_name = 'meta-llama/llama-2-7b-hf'  # Replace with the desired LLaMA-2 model 
         tokenizer_class = LlamaTokenizer
         model_class = LlamaForCausalLM
         special_tokens = {'pad_token': '<pad>'}
         max_length = 128  # Adjust if needed based on the model's max length
+    
+    elif model_choice == 'llama3': 
+        model_name = 'meta-llama/Llama-3.2-1B'  # Replace with Meta-Llama-3-8B-Instruct
+        tokenizer_class = AutoTokenizer
+        model_class = AutoModelForCausalLM
+        max_length = 128  # Adjust if needed based on the model's max length
     else:
-        raise ValueError("Invalid model choice. Please select 'gpt2' or 'llama2'.")
+        raise ValueError("Invalid model choice. Please select 'gpt2' or 'llama2' or 'llama3'.")
     
 
     # Load tokenizer and model
     tokenizer = tokenizer_class.from_pretrained(model_name)
     model = model_class.from_pretrained(model_name, device_map="auto")
 
-    # Add special tokens if necessary
-    tokenizer.add_special_tokens(special_tokens)
-    model.resize_token_embeddings(len(tokenizer))
+    if model_choice != 'llama3':
+        # Add special tokens if necessary
+        tokenizer.add_special_tokens(special_tokens)
+        model.resize_token_embeddings(len(tokenizer))
 
-    # Set the padding token for the tokenizer
-    tokenizer.pad_token = special_tokens['pad_token']
+        # Set the padding token for the tokenizer
+        tokenizer.pad_token = special_tokens['pad_token']
+    else:
+        # Set the padding token to the eos_token
+        tokenizer.pad_token = tokenizer.eos_token
 
     # # Inspect the first few examples
-    first_batch_texts = train_data['input_text'].tolist()[:5]  # Adjust as needed
-    inspect_examples(first_batch_texts, tokenizer, model, max_length=512, num_examples=2)
+    # first_batch_texts = train_data['input_text'].tolist()[:5]  # Adjust as needed
+    # inspect_examples(first_batch_texts, tokenizer, model, max_length=512, num_examples=2)
 
     # # Calculate token length distribution
     # token_length_distribution = find_token_length_distribution(train_data['hidden_emo_text'], tokenizer)

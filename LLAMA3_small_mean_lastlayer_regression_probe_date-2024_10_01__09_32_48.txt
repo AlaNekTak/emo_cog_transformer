@@ -1,0 +1,136 @@
+01-Oct-24 09:32:49 - INFO - Memory Info:
+              total        used        free      shared  buff/cache   available
+Mem:           187G         15G         89G        3.9G         82G        167G
+Swap:            0B          0B          0B
+
+01-Oct-24 09:32:49 - INFO - GPU Info:
+Tue Oct  1 09:32:49 2024       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.129.03             Driver Version: 535.129.03   CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  Tesla V100-PCIE-32GB           Off | 00000000:3B:00.0 Off |                    0 |
+| N/A   28C    P0              35W / 250W |      0MiB / 32768MiB |      1%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+
+01-Oct-24 09:32:50 - INFO - Logged in successfully to Hugging Face Hub.
+01-Oct-24 09:35:47 - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+01-Oct-24 09:36:33 - INFO - Loaded model 'meta-llama/Llama-3.2-1B' with 1235814400 parameters.
+01-Oct-24 09:36:33 - INFO - Model configuration: LlamaConfig {
+  "_name_or_path": "meta-llama/Llama-3.2-1B",
+  "architectures": [
+    "LlamaForCausalLM"
+  ],
+  "attention_bias": false,
+  "attention_dropout": 0.0,
+  "bos_token_id": 128000,
+  "eos_token_id": 128001,
+  "head_dim": 64,
+  "hidden_act": "silu",
+  "hidden_size": 2048,
+  "initializer_range": 0.02,
+  "intermediate_size": 8192,
+  "max_position_embeddings": 131072,
+  "mlp_bias": false,
+  "model_type": "llama",
+  "num_attention_heads": 32,
+  "num_hidden_layers": 16,
+  "num_key_value_heads": 8,
+  "pretraining_tp": 1,
+  "rms_norm_eps": 1e-05,
+  "rope_scaling": {
+    "factor": 32.0,
+    "high_freq_factor": 4.0,
+    "low_freq_factor": 1.0,
+    "original_max_position_embeddings": 8192,
+    "rope_type": "llama3"
+  },
+  "rope_theta": 500000.0,
+  "tie_word_embeddings": true,
+  "torch_dtype": "bfloat16",
+  "transformers_version": "4.45.1",
+  "use_cache": true,
+  "vocab_size": 128256
+}
+
+01-Oct-24 09:36:33 - INFO - Tokenizing texts
+01-Oct-24 09:36:33 - INFO - Running model inference to extract hidden states
+01-Oct-24 09:36:49 - INFO - Completed 20/207 batches
+01-Oct-24 09:37:06 - INFO - Completed 40/207 batches
+01-Oct-24 09:37:22 - INFO - Completed 60/207 batches
+01-Oct-24 09:37:38 - INFO - Completed 80/207 batches
+01-Oct-24 09:37:54 - INFO - Completed 100/207 batches
+01-Oct-24 09:38:11 - INFO - Completed 120/207 batches
+01-Oct-24 09:38:27 - INFO - Completed 140/207 batches
+01-Oct-24 09:38:43 - INFO - Completed 160/207 batches
+01-Oct-24 09:38:59 - INFO - Completed 180/207 batches
+01-Oct-24 09:39:15 - INFO - Completed 200/207 batches
+01-Oct-24 09:39:21 - INFO - Completed 207/207 batches
+01-Oct-24 09:39:22 - INFO - Saved all hidden states and labels.
+01-Oct-24 09:39:22 - INFO - hidden states saved!
+01-Oct-24 09:39:22 - INFO - Probing emotion category
+01-Oct-24 09:39:22 - INFO - Feature matrix shape: (6600, 2048)
+01-Oct-24 09:39:22 - INFO - Target vector shape: (6600,)
+01-Oct-24 09:45:52 - INFO - 5-Fold CV Accuracy for emotion category: 0.5212 Â± 0.0174
+01-Oct-24 09:45:52 - INFO - Training Accuracy for emotion category: 0.9968
+01-Oct-24 09:45:52 - INFO - Probing appraisal: predict_event
+01-Oct-24 09:45:52 - INFO - Feature matrix shape: (6600, 2048)
+01-Oct-24 09:45:52 - INFO - Target vector shape: (6600,)
+01-Oct-24 09:46:07 - INFO - 5-Fold CV MSE for 'predict_event': 2.8691 Â± 0.0237
+01-Oct-24 09:46:07 - INFO - Training MSE for 'predict_event': 1.1393
+01-Oct-24 09:46:07 - INFO - 5-Fold CV R-squared for 'predict_event': -0.3239 Â± 0.0223
+01-Oct-24 09:46:07 - INFO - Training R-squared for 'predict_event': 0.4749
+01-Oct-24 09:46:07 - INFO - - -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+01-Oct-24 09:46:07 - INFO - Probing appraisal: pleasantness
+01-Oct-24 09:46:07 - INFO - Feature matrix shape: (6600, 2048)
+01-Oct-24 09:46:07 - INFO - Target vector shape: (6600,)
+01-Oct-24 09:46:22 - INFO - 5-Fold CV MSE for 'pleasantness': 2.0465 Â± 0.0680
+01-Oct-24 09:46:22 - INFO - Training MSE for 'pleasantness': 0.8107
+01-Oct-24 09:46:22 - INFO - 5-Fold CV R-squared for 'pleasantness': 0.2867 Â± 0.0228
+01-Oct-24 09:46:22 - INFO - Training R-squared for 'pleasantness': 0.7175
+01-Oct-24 09:46:22 - INFO - - -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+01-Oct-24 09:46:22 - INFO - Probing appraisal: attention
+01-Oct-24 09:46:22 - INFO - Feature matrix shape: (6600, 2048)
+01-Oct-24 09:46:22 - INFO - Target vector shape: (6600,)
+01-Oct-24 09:46:38 - INFO - 5-Fold CV MSE for 'attention': 2.4058 Â± 0.0810
+01-Oct-24 09:46:38 - INFO - Training MSE for 'attention': 0.9609
+01-Oct-24 09:46:38 - INFO - 5-Fold CV R-squared for 'attention': -0.3996 Â± 0.0484
+01-Oct-24 09:46:38 - INFO - Training R-squared for 'attention': 0.4418
+01-Oct-24 09:46:38 - INFO - - -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+01-Oct-24 09:46:38 - INFO - Probing appraisal: other_responsblt
+01-Oct-24 09:46:38 - INFO - Feature matrix shape: (6600, 2048)
+01-Oct-24 09:46:38 - INFO - Target vector shape: (6600,)
+01-Oct-24 09:46:54 - INFO - 5-Fold CV MSE for 'other_responsblt': 2.9091 Â± 0.0705
+01-Oct-24 09:46:54 - INFO - Training MSE for 'other_responsblt': 1.1618
+01-Oct-24 09:46:54 - INFO - 5-Fold CV R-squared for 'other_responsblt': -0.0609 Â± 0.0317
+01-Oct-24 09:46:54 - INFO - Training R-squared for 'other_responsblt': 0.5766
+01-Oct-24 09:46:54 - INFO - - -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+01-Oct-24 09:46:54 - INFO - Probing appraisal: chance_control
+01-Oct-24 09:46:54 - INFO - Feature matrix shape: (6600, 2048)
+01-Oct-24 09:46:54 - INFO - Target vector shape: (6600,)
+01-Oct-24 09:47:09 - INFO - 5-Fold CV MSE for 'chance_control': 2.6518 Â± 0.1071
+01-Oct-24 09:47:09 - INFO - Training MSE for 'chance_control': 1.0607
+01-Oct-24 09:47:09 - INFO - 5-Fold CV R-squared for 'chance_control': -0.2392 Â± 0.0718
+01-Oct-24 09:47:09 - INFO - Training R-squared for 'chance_control': 0.5053
+01-Oct-24 09:47:09 - INFO - - -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+01-Oct-24 09:47:09 - INFO - Probing appraisal: social_norms
+01-Oct-24 09:47:09 - INFO - Feature matrix shape: (6600, 2048)
+01-Oct-24 09:47:09 - INFO - Target vector shape: (6600,)
+01-Oct-24 09:47:24 - INFO - 5-Fold CV MSE for 'social_norms': 1.8499 Â± 0.0509
+01-Oct-24 09:47:24 - INFO - Training MSE for 'social_norms': 0.7367
+01-Oct-24 09:47:24 - INFO - 5-Fold CV R-squared for 'social_norms': -0.0586 Â± 0.0769
+01-Oct-24 09:47:24 - INFO - Training R-squared for 'social_norms': 0.5806
+01-Oct-24 09:47:24 - INFO - - -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+01-Oct-24 09:47:24 - INFO - probe done!
