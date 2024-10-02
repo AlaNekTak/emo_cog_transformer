@@ -34,7 +34,7 @@ class TextDataset(Dataset):
 # Log class to handle logging activities
 class Log:
     def __init__(self):
-        filename = f'probe_date-{datetime.now().strftime("%Y_%m_%d__%H_%M_%S")}.txt'
+        filename = f'logs/probe_date-{datetime.now().strftime("%Y_%m_%d__%H_%M_%S")}.txt'
         self.log_path = os.path.join('', filename)
         self.logger = self._setup_logging()
 
@@ -206,7 +206,8 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length, ext
         padding='max_length',
         truncation=True,
         max_length=max_length,
-        return_tensors="pt"
+        return_tensors="pt",
+        padding_side='left'  # Pad at the beginning of the sequences
     ).to(model.device)
 
     # Run the model to get hidden states
@@ -260,7 +261,7 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length, ext
     return result_states
 
 # Process batches of text to get hidden states
-def process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode = 'last_token'):
+def process_batches_multiple_files(dataloader, tokenizer, model, logger, max_length, extract_mode = 'last_token'):
     total_batches = len(dataloader)
     all_hidden_states = []
     all_labels = []  # To store labels corresponding to each batch
@@ -433,6 +434,69 @@ def probe_classification(hidden_states, labels, appraisals, logger):
         logger.info(f"Accuracy for {appraisal_name} (low, med, high classification): {avg_accuracy:.4f} Â± {std_dev:.4f}")
         logger.info(classification_report(y_test, y_pred, target_names=['Low', 'Medium', 'High']))
 
+def generate_text_responses(tokenizer, model, batch_texts, max_length, num_tokens=5):
+    """
+    Generates text responses for a given list of input texts using the provided model and tokenizer.
+
+    Args:
+    - tokenizer: The tokenizer object.
+    - model: The model used for generation.
+    - batch_texts: List of text prompts.
+    - max_length: Maximum length of the generated sequence.
+    - num_tokens: Number of tokens to generate.
+
+    Returns:
+    - A list of generated text responses.
+    """
+    model.eval()  # Set the model to evaluation mode
+    generated_responses = []
+    first_tokens = []
+
+    # Encode the prompts and generate responses
+    for text in batch_texts:
+        encoded_input = tokenizer.encode(text, return_tensors='pt', padding='max_length', truncation=True, max_length=max_length,  padding_side='left', add_special_tokens=True ).to(model.device)
+        outputs = model.generate(encoded_input, max_length=max_length + num_tokens, num_return_sequences=1)
+        
+        # Decode the generated tokens to strings
+        generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        generated_responses.append(generated_text)
+        
+        # Extract and save the first token after generation
+        generated_tokens = tokenizer.convert_ids_to_tokens(outputs[0])
+        if len(generated_tokens) > max_length:
+            first_tokens.append(generated_tokens[max_length])  # Get the first token of the generated text
+
+    return generated_responses, first_tokens
+
+def compare_emotions(first_tokens, labels, logger):
+    """
+    Compares the first generated tokens with expected emotion labels.
+
+    Args:
+    - first_tokens: List of the first tokens from the generated texts.
+    - labels: The corresponding labels for the emotions.
+    - logger: Logger object for logging the comparison results.
+
+    Returns:
+    - None; logs results directly.
+    """
+    emotion_dict = {0: "anger", 1: "boredom", 2: "disgust", 3: "fear", 4: "guilt",
+                    5: "joy", 6: "no-emotion", 7: "pride", 8: "relief", 9: "sadness",
+                    10: "shame", 11: "surprise", 12: "trust"}
+    
+    correct_matches = 0
+    total = len(first_tokens)
+
+    for token, label in zip(first_tokens, labels):
+        expected_emotion = emotion_dict.get(label, "Unknown")
+        # Here you need a mapping of tokens to emotions or a way to interpret tokens as emotions
+        if token in expected_emotion.lower():  # Simplistic matching; consider refining how tokens are matched to emotions
+            correct_matches += 1
+        logger.info(f"Expected Emotion: {expected_emotion}, Generated Token: {token}")
+
+    accuracy = correct_matches / total if total > 0 else 0
+    logger.info(f"Accuracy of matching generated tokens to expected emotions: {accuracy:.2%}")
+    return accuracy
 
 if __name__ == '__main__':
     log = Log()
@@ -443,7 +507,7 @@ if __name__ == '__main__':
     data_path = 'data/enVent_gen_Data.csv'
     data_encoding = 'ISO-8859-1'
     train_data = pd.read_csv(data_path, encoding=data_encoding)
-    # train_data = train_data[:100]
+    train_data = train_data[:100]
 
     train_data['emotion'] = train_data['emotion'].map({
         "anger": 0, "boredom": 1, "disgust": 2, "fear": 3, "guilt": 4, "joy": 5,
@@ -452,7 +516,7 @@ if __name__ == '__main__':
     }).astype(int)
 
     appraisals = ['predict_event', 'pleasantness', 'attention', 'other_responsblt', 'chance_control', 'social_norms']
-    train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x: f"{x}. I felt")
+    train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x:f"select an emotion from the list below that matches this scenario:\n[anger, boredom, disgust, fear, guilt, joy, pride, relief, sadness, shame, surprise, trust] \n {x}. The emotion I felt was")
     labels = train_data[['emotion'] + appraisals] 
 
     dataset = TextDataset(train_data['input_text'].tolist(), labels)
@@ -513,7 +577,7 @@ if __name__ == '__main__':
     logger.info(f"Loaded model '{model_name}' with {num_params} parameters.")
     logger.info(f"Model configuration: {model.config}")
 
-    extract_mode = "mean" # or 'mean'
+    extract_mode = "last_token" # or 'mean'
     try:
         logger.info("Tokenizing texts")
         logger.info("Running model inference to extract hidden states")
@@ -523,11 +587,29 @@ if __name__ == '__main__':
         logger.error(f"Extracting hidden states failed: {e}")
 
     try:
-        # Load the hidden states from file
-        all_hidden_states = np.load('hidden_states.npy')
-        labels = np.load('labels.npy')
-        # probe_classification(all_hidden_states, labels, appraisals, logger)
-        probe( all_hidden_states, labels,appraisals, logger)
+        # # Load the hidden states from file
+        # all_hidden_states = np.load('hidden_states.npy')
+        # labels = np.load('labels.npy')
+        # # probe_classification(all_hidden_states, labels, appraisals, logger)
+        # probe( all_hidden_states, labels,appraisals, logger)
         logger.info('probe done!')
     except Exception as e:
         logger.error(f"Probing failed: {e}")
+
+
+    try:
+        logger.info("Running text generation...")
+        first_batch_texts = train_data['input_text'].tolist()[:5]  # Adjust as needed
+        generated_responses, first_tokens = generate_text_responses(tokenizer, model, first_batch_texts, max_length=128, num_tokens=5)
+
+
+        for i, text in enumerate(first_batch_texts):
+            logger.info(f"Input: {text}")
+            logger.info(f"Generated Response: {generated_responses[i]}")
+            logger.info(f"First Generated Token: {first_tokens[i]}")
+        
+        accuracy = compare_emotions(first_tokens, labels, logger)
+        logger.info(f"Final Accuracy: {accuracy:.2%}")
+        
+    except Exception as e:
+        logger.error(f"Text generation failed: {e}")

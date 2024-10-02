@@ -4,3 +4,5 @@ myenv/
 .ipynb_checkpoints/
 .env
 # Ignoring logs and env 
+*.npy
+logs/
