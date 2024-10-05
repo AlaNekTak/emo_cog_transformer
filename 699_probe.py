@@ -14,7 +14,7 @@ import subprocess
 import sentencepiece 
 from huggingface_hub import login
 from dotenv import load_dotenv
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold, GridSearchCV
 import torch.nn.functional as F
 
 # Define the dataset class for handling text data
@@ -448,7 +448,11 @@ def probe(all_hidden_states, labels, appraisals, logger):
     Y_emotion = labels[:, 0]
     Y_appraisals = labels[:, 1:]
 
+
     kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+    # Stratified K-Fold
+    # kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    
 
     # Probing for emotion (classification)
     try:
@@ -456,12 +460,29 @@ def probe(all_hidden_states, labels, appraisals, logger):
         logger.info(f"Feature matrix shape: {X.shape}")
         logger.info(f"Target vector shape: {Y_emotion.shape}")
 
+        # Define parameter grid for hyperparameter tuning
+        param_grid = {
+            'C': [0.01], #, 0.1, 1, 10
+            'penalty': ['l1'], #, 'l2'
+            'solver': ['saga'],  # 'saga' supports both 'l1' and 'l2'
+        }
+        # # Initialize Logistic Regression with max_iter increased to ensure convergence
+        # lr = LogisticRegression(max_iter=1000)
+        
+        # # Grid Search with Cross-Validation
+        # grid_search = GridSearchCV(lr, param_grid, cv=kfold, scoring='accuracy', n_jobs=-1)
+        # grid_search.fit(X, Y_emotion)
+        
+        # best_classifier = grid_search.best_estimator_
+        # cv_accuracies = cross_val_score(best_classifier, X, Y_emotion, cv=kfold, scoring='accuracy')
+        # training_accuracy = best_classifier.score(X, Y_emotion)
+
         cv_accuracies = cross_val_score(LogisticRegression(max_iter=2000), X, Y_emotion, cv=kfold, scoring='accuracy')
         classifier = LogisticRegression(max_iter=2000)
         classifier.fit(X, Y_emotion)  # Train on the entire dataset for full model training after CV
         training_accuracy = classifier.score(X, Y_emotion)
 
-        logger.info(f"5-Fold CV Accuracy for emotion category: {cv_accuracies.mean():.4f} Â± {cv_accuracies.std():.4f}")
+        logger.info(f"5-Fold CV Accuracy for emotion category: {cv_accuracies.mean():.4f} ± {cv_accuracies.std():.4f}")
         logger.info(f"Training Accuracy for emotion category: {training_accuracy:.4f}")
     except Exception as e:
         logger.error(f"Error while probing emotion category: {e}")
@@ -474,18 +495,38 @@ def probe(all_hidden_states, labels, appraisals, logger):
             logger.info(f"Feature matrix shape: {X.shape}")
             logger.info(f"Target vector shape: {Y.shape}")
 
-            model = LinearRegression() # ElasticNet()
-            cv_mse = cross_val_score(model, X, Y, cv=kfold, scoring='neg_mean_squared_error')
-            cv_r2 = cross_val_score(model, X, Y, cv=kfold, scoring='r2')
-
-            model.fit(X, Y)  # Train on the entire dataset for full model training after CV
-            training_predictions = model.predict(X)
+            # Define parameter grid for ElasticNet
+            param_grid = {
+                'alpha': [0.1, 1.0, 10.0],
+                'l1_ratio': [0.1, 0.5, 0.9]
+            }
+            
+            enet = ElasticNet(max_iter=5000)
+            grid_search = GridSearchCV(enet, param_grid, cv=kfold, scoring='r2', n_jobs=-1)
+            grid_search.fit(X, Y)
+            
+            best_model = grid_search.best_estimator_
+            cv_mse = cross_val_score(best_model, X, Y, cv=kfold, scoring='neg_mean_squared_error')
+            cv_r2 = cross_val_score(best_model, X, Y, cv=kfold, scoring='r2')
+            
+            training_predictions = best_model.predict(X)
             training_mse = mean_squared_error(Y, training_predictions)
             training_r2 = r2_score(Y, training_predictions)
 
-            logger.info(f"5-Fold CV MSE for '{appraisal_name}': {-cv_mse.mean():.4f} Â± {cv_mse.std():.4f}")
+
+
+            # model = LinearRegression() # ElasticNet()
+            # cv_mse = cross_val_score(model, X, Y, cv=kfold, scoring='neg_mean_squared_error')
+            # cv_r2 = cross_val_score(model, X, Y, cv=kfold, scoring='r2')
+
+            # model.fit(X, Y)  # Train on the entire dataset for full model training after CV
+            # training_predictions = model.predict(X)
+            # training_mse = mean_squared_error(Y, training_predictions)
+            # training_r2 = r2_score(Y, training_predictions)
+
+            logger.info(f"5-Fold CV MSE for '{appraisal_name}': {-cv_mse.mean():.4f} ± {cv_mse.std():.4f}")
             logger.info(f"Training MSE for '{appraisal_name}': {training_mse:.4f}")
-            logger.info(f"5-Fold CV R-squared for '{appraisal_name}': {cv_r2.mean():.4f} Â± {cv_r2.std():.4f}")
+            logger.info(f"5-Fold CV R-squared for '{appraisal_name}': {cv_r2.mean():.4f} ± {cv_r2.std():.4f}")
             logger.info(f"Training R-squared for '{appraisal_name}': {training_r2:.4f}")
             logger.info("- -"*25)
         except Exception as e:
@@ -613,7 +654,7 @@ if __name__ == '__main__':
     data_path = 'data/enVent_gen_Data.csv'
     data_encoding = 'ISO-8859-1'
     train_data = pd.read_csv(data_path, encoding=data_encoding)
-    train_data = train_data[:100]
+    # train_data = train_data[:100]
     emotion_map = {
         "anger": 0, "boredom": 1, "disgust": 2, "fear": 3, "guilt": 4, "joy": 5,
         "no-emotion": 6, "pride": 7, "relief": 8, "sadness": 9, "shame": 10,
@@ -683,14 +724,14 @@ if __name__ == '__main__':
     logger.info(f"Loaded model '{model_name}' with {num_params} parameters.")
     logger.info(f"Model configuration: {model.config}")
 
-    extract_mode = "logit_lens" # or 'mean' or 'logit_lens' or 'last_token'
+    extract_mode = "last_token" # or 'mean' or 'logit_lens' or 'last_token'
     try:
-        logger.info("Tokenizing texts")
-        logger.info("Running model inference to extract hidden states")
-        if extract_mode != 'logit_lens':
-            _, _ = process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode)
-        else: 
-            logit_lens(dataloader, tokenizer,emotion_map,  model, logger, max_length, extract_mode)
+        # logger.info("Tokenizing texts")
+        # logger.info("Running model inference to extract hidden states")
+        # if extract_mode != 'logit_lens':
+        #     _, _ = process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode)
+        # else: 
+        #     logit_lens(dataloader, tokenizer,emotion_map,  model, logger, max_length, extract_mode)
 
         logger.info('hidden states saved!')
     except Exception as e:
@@ -700,10 +741,10 @@ if __name__ == '__main__':
         
     try:
         # # Load the hidden states from file
-        # all_hidden_states = np.load('hidden_states.npy')
-        # labels = np.load('labels.npy')
-        # # probe_classification(all_hidden_states, labels, appraisals, logger)
-        # probe( all_hidden_states, labels,appraisals, logger)
+        all_hidden_states = np.load('hidden_states.npy')
+        labels = np.load('labels.npy')
+        # probe_classification(all_hidden_states, labels, appraisals, logger)
+        probe( all_hidden_states, labels,appraisals, logger)
         logger.info('probe done!')
     except Exception as e:
         logger.error(f"Probing failed: {e}")
