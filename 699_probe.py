@@ -16,6 +16,9 @@ from huggingface_hub import login
 from dotenv import load_dotenv
 from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold, GridSearchCV
 import torch.nn.functional as F
+from sklearn.preprocessing import StandardScaler
+from sklearn.exceptions import ConvergenceWarning
+import warnings
 
 # Define the dataset class for handling text data
 class TextDataset(Dataset):
@@ -445,6 +448,9 @@ def probe(all_hidden_states, labels, appraisals, logger):
         all_hidden_states = all_hidden_states.cpu().numpy()
 
     X = all_hidden_states.reshape(all_hidden_states.shape[0], -1)
+    # Normalize X
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)    
     Y_emotion = labels[:, 0]
     Y_appraisals = labels[:, 1:]
 
@@ -468,17 +474,21 @@ def probe(all_hidden_states, labels, appraisals, logger):
         }
         # # Initialize Logistic Regression with max_iter increased to ensure convergence
         # lr = LogisticRegression(max_iter=1000)
-        
+
+                
         # # Grid Search with Cross-Validation
         # grid_search = GridSearchCV(lr, param_grid, cv=kfold, scoring='accuracy', n_jobs=-1)
-        # grid_search.fit(X, Y_emotion)
+        # # Handle convergence warnings
+        # with warnings.catch_warnings():
+        #     warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        #     grid_search.fit(X, Y_emotion)
         
         # best_classifier = grid_search.best_estimator_
         # cv_accuracies = cross_val_score(best_classifier, X, Y_emotion, cv=kfold, scoring='accuracy')
         # training_accuracy = best_classifier.score(X, Y_emotion)
 
-        cv_accuracies = cross_val_score(LogisticRegression(max_iter=2000), X, Y_emotion, cv=kfold, scoring='accuracy')
-        classifier = LogisticRegression(max_iter=2000)
+        classifier = LogisticRegression(max_iter=2000, penalty= 'l2')
+        cv_accuracies = cross_val_score(classifier, X, Y_emotion, cv=kfold, scoring='accuracy')
         classifier.fit(X, Y_emotion)  # Train on the entire dataset for full model training after CV
         training_accuracy = classifier.score(X, Y_emotion)
 
@@ -724,7 +734,7 @@ if __name__ == '__main__':
     logger.info(f"Loaded model '{model_name}' with {num_params} parameters.")
     logger.info(f"Model configuration: {model.config}")
 
-    extract_mode = "last_token" # or 'mean' or 'logit_lens' or 'last_token'
+    extract_mode = "mean" # or 'mean' or 'logit_lens' or 'last_token'
     try:
         # logger.info("Tokenizing texts")
         # logger.info("Running model inference to extract hidden states")
