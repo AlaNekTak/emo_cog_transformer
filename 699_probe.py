@@ -15,6 +15,7 @@ import sentencepiece
 from huggingface_hub import login
 from dotenv import load_dotenv
 from sklearn.model_selection import cross_val_score, KFold
+import torch.nn.functional as F
 
 # Define the dataset class for handling text data
 class TextDataset(Dataset):
@@ -214,8 +215,9 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length, ext
     with torch.no_grad():
         outputs = model(**inputs, output_hidden_states=True)
 
-    # Get the last hidden state from the model outputs
+    # Get the hidden state from the model outputs
     hidden_states = outputs.hidden_states[-1]  # Shape: [batch_size, seq_length, hidden_size]
+    all_hidden_states = outputs.hidden_states  # Tuple of (num_layers + 1), each of shape [batch_size, seq_length, hidden_size]
 
     # Get the attention mask to identify non-padded tokens
     attention_mask = inputs['attention_mask']  # Shape: [batch_size, seq_length]
@@ -224,10 +226,11 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length, ext
     sequence_lengths = attention_mask.sum(dim=1)  # Shape: [batch_size]
     # Indices of the last non-padded tokens
     last_token_indices = sequence_lengths - 1  # Subtract 1 for zero-based indexing
+    batch_size =  hidden_states.size(0)
 
     if extract_mode == "last_token":
         last_token_states = []
-        for i in range(hidden_states.size(0)):
+        for i in range(batch_size):
             index = last_token_indices[i].item()
             last_hidden_state = hidden_states[i, index, :]  # Shape: [hidden_size]
             last_token_states.append(last_hidden_state)
@@ -249,13 +252,41 @@ def extract_hidden_states(batch_texts, tokenizer, model, logger, max_length, ext
     
     elif extract_mode == "mean":
         mean_states = []
-        for i in range(hidden_states.size(0)):
+        for i in range(batch_size):
             valid_tokens = hidden_states[i, :sequence_lengths[i], :]
             mean_state = valid_tokens.mean(dim=0)
             mean_states.append(mean_state)
         
         # Convert list to tensor and numpy array
         result_states = torch.stack(mean_states).detach().cpu().numpy()
+
+    elif extract_mode == "logit_lens":
+        hidden_states_layers = []
+        logits_layers = []
+        # Loop over each layer
+        for layer_idx, hidden_states in enumerate(all_hidden_states):
+            # Extract the hidden states of the last non-padded token for each sequence in the batch
+            last_token_states = []
+            for i in range(batch_size):
+                index = last_token_indices[i].item()
+                last_hidden_state = hidden_states[i, index, :]  # Shape: [hidden_size]
+                last_token_states.append(last_hidden_state)
+
+            # Stack the hidden states into a tensor
+            last_token_states = torch.stack(last_token_states)  # Shape: [batch_size, hidden_size]
+            hidden_states_layers.append(last_token_states.detach().cpu().numpy())
+
+            # Project the hidden states through the LM head to get logits
+            # For Llama models, the LM head is usually tied with the embeddings
+            if hasattr(model, 'lm_head'):
+                lm_head = model.lm_head
+            else:
+                lm_head = model.get_output_embeddings()
+
+            logits = lm_head(last_token_states)  # Shape: [batch_size, vocab_size]
+            logits_layers.append(logits.detach().cpu().numpy())
+        
+        return hidden_states_layers, logits_layers
 
     # logger.info(f"Resultant state shape for mode '{mode}': {result_states.shape}")  # Shape: [batch_size, hidden_size]
     return result_states
@@ -324,6 +355,80 @@ def process_batches(dataloader, tokenizer, model, logger, max_length, extract_mo
 
     logger.info("Saved all hidden states and labels.")
     return all_hidden_states_array, all_labels_array
+
+def logit_lens(dataloader, tokenizer, emotion_map, model, logger, max_length, extract_mode='logit_lens'):
+    total_batches = len(dataloader)
+    all_batch_texts = []     # To store texts across all batches
+    all_emotion_tokens = []  # To store expected emotion words
+    all_logits_layers = []   # To store logits for each layer across all batches
+
+    for i, (batch_texts, batch_labels) in enumerate(tqdm(dataloader, desc="Processing batches"), 1):
+        if i % 20 == 0 or i == total_batches:
+            logger.info(f"Completed {i}/{total_batches} batches")
+        debug = True if i < 2 else False
+
+        # Extract hidden states and logits layers
+        hidden_states_layers, logits_layers = extract_hidden_states(
+            batch_texts, tokenizer, model, logger=logger, max_length=max_length,
+            extract_mode=extract_mode, debug=debug
+        )
+
+        # Accumulate texts and logits
+        all_batch_texts.extend(batch_texts)
+        all_logits_layers.append(logits_layers)  # logits_layers is a list of [batch_size, vocab_size]
+
+        # Map emotion labels to emotion words for this batch
+        emotion_dict = {v: k for k, v in emotion_map.items()}
+        emotion_labels = [int(label[0]) for label in batch_labels]
+        emotion_tokens_batch = [emotion_dict[label] for label in emotion_labels]
+        all_emotion_tokens.extend(emotion_tokens_batch)
+
+    # Flatten all_logits_layers to match the samples
+    num_layers = len(all_logits_layers[0])  # Number of layers
+    all_logits_per_layer = [[] for _ in range(num_layers)]
+
+    # Rearrange logits so that for each layer, we have logits for all samples
+    for layer_idx in range(num_layers):
+        for batch_logits in all_logits_layers:
+            layer_logits = batch_logits[layer_idx]  # Shape: [batch_size, vocab_size]
+            all_logits_per_layer[layer_idx].extend(layer_logits)  # Append logits for this layer
+
+    # Convert emotion words to token IDs
+    emotion_token_ids = []
+    for emotion in all_emotion_tokens:
+        token_ids = tokenizer.encode(emotion, add_special_tokens=False)
+        if len(token_ids) > 1:
+            # Handle multi-token emotions
+            token_id = token_ids[0]  # Take the first token ID
+        else:
+            token_id = token_ids[0]
+        emotion_token_ids.append(token_id)
+
+    import torch.nn.functional as F
+
+    # Analyze logits to see when the model becomes certain
+    num_samples = len(all_batch_texts)
+    for i in range(num_samples):
+        logger.info(f"Input Text: {all_batch_texts[i]}")
+        logger.info(f"Expected Emotion: {all_emotion_tokens[i]}")
+        logger.info("Layer-wise Predictions:")
+        for layer_idx in range(num_layers):
+            # Get the logits for this sample at this layer
+            logits_i = all_logits_per_layer[layer_idx][i]  # Shape: [vocab_size]
+            # Apply softmax to get probabilities
+            probs = F.softmax(torch.tensor(logits_i), dim=-1)
+            # Get the predicted token
+            predicted_token_id = torch.argmax(probs).item()
+            predicted_token = tokenizer.decode([predicted_token_id])
+
+            # Get the probability of the expected emotion token
+            expected_token_id = emotion_token_ids[i]
+            expected_token_prob = probs[expected_token_id].item()
+
+            logger.info(f"  Layer {layer_idx}: Predicted Token: {predicted_token}, "
+                        f"Expected Token Prob: {expected_token_prob:.4f}")
+        logger.info("-" * 50)
+
 
 # Probing function to analyze hidden states using regression
 def probe(all_hidden_states, labels, appraisals, logger):
@@ -498,6 +603,7 @@ def compare_emotions(first_tokens, labels, logger):
     logger.info(f"Accuracy of matching generated tokens to expected emotions: {accuracy:.2%}")
     return accuracy
 
+
 if __name__ == '__main__':
     log = Log()
     logger = log.logger
@@ -508,15 +614,15 @@ if __name__ == '__main__':
     data_encoding = 'ISO-8859-1'
     train_data = pd.read_csv(data_path, encoding=data_encoding)
     train_data = train_data[:100]
-
-    train_data['emotion'] = train_data['emotion'].map({
+    emotion_map = {
         "anger": 0, "boredom": 1, "disgust": 2, "fear": 3, "guilt": 4, "joy": 5,
         "no-emotion": 6, "pride": 7, "relief": 8, "sadness": 9, "shame": 10,
         "surprise": 11, "trust": 12
-    }).astype(int)
+    }
+    train_data['emotion'] = train_data['emotion'].map(emotion_map).astype(int)
 
     appraisals = ['predict_event', 'pleasantness', 'attention', 'other_responsblt', 'chance_control', 'social_norms']
-    train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x:f"select an emotion from the list below that matches this scenario:\n[anger, boredom, disgust, fear, guilt, joy, pride, relief, sadness, shame, surprise, trust] \n {x}. The emotion I felt was")
+    train_data['input_text'] = train_data['hidden_emo_text'].apply(lambda x:f"select an emotion from the list below that matches this scenario: \n[anger, boredom, disgust, fear, guilt, joy, pride, relief, sadness, shame, surprise, trust] \n {x}. The emotion I felt was")
     labels = train_data[['emotion'] + appraisals] 
 
     dataset = TextDataset(train_data['input_text'].tolist(), labels)
@@ -577,15 +683,21 @@ if __name__ == '__main__':
     logger.info(f"Loaded model '{model_name}' with {num_params} parameters.")
     logger.info(f"Model configuration: {model.config}")
 
-    extract_mode = "last_token" # or 'mean'
+    extract_mode = "logit_lens" # or 'mean' or 'logit_lens' or 'last_token'
     try:
         logger.info("Tokenizing texts")
         logger.info("Running model inference to extract hidden states")
-        _, _ = process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode)
+        if extract_mode != 'logit_lens':
+            _, _ = process_batches(dataloader, tokenizer, model, logger, max_length, extract_mode)
+        else: 
+            logit_lens(dataloader, tokenizer,emotion_map,  model, logger, max_length, extract_mode)
+
         logger.info('hidden states saved!')
     except Exception as e:
         logger.error(f"Extracting hidden states failed: {e}")
 
+
+        
     try:
         # # Load the hidden states from file
         # all_hidden_states = np.load('hidden_states.npy')
@@ -597,19 +709,19 @@ if __name__ == '__main__':
         logger.error(f"Probing failed: {e}")
 
 
-    try:
-        logger.info("Running text generation...")
-        first_batch_texts = train_data['input_text'].tolist()[:5]  # Adjust as needed
-        generated_responses, first_tokens = generate_text_responses(tokenizer, model, first_batch_texts, max_length=128, num_tokens=5)
+    # try:
+    #     logger.info("Running text generation...")
+    #     first_batch_texts = train_data['input_text'].tolist()[:5]  # Adjust as needed
+    #     generated_responses, first_tokens = generate_text_responses(tokenizer, model, first_batch_texts, max_length=128, num_tokens=5)
 
 
-        for i, text in enumerate(first_batch_texts):
-            logger.info(f"Input: {text}")
-            logger.info(f"Generated Response: {generated_responses[i]}")
-            logger.info(f"First Generated Token: {first_tokens[i]}")
+    #     for i, text in enumerate(first_batch_texts):
+    #         logger.info(f"Input: {text}")
+    #         logger.info(f"Generated Response: {generated_responses[i]}")
+    #         logger.info(f"First Generated Token: {first_tokens[i]}")
         
-        accuracy = compare_emotions(first_tokens, labels, logger)
-        logger.info(f"Final Accuracy: {accuracy:.2%}")
+    #     accuracy = compare_emotions(first_tokens, labels, logger)
+    #     logger.info(f"Final Accuracy: {accuracy:.2%}")
         
-    except Exception as e:
-        logger.error(f"Text generation failed: {e}")
+    # except Exception as e:
+    #     logger.error(f"Text generation failed: {e}")
